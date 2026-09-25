@@ -1,0 +1,3 @@
+-keep class com.nexa.app.data.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
