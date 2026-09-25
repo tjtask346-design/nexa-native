@@ -8,9 +8,12 @@ class Repository(private val prefs: Prefs) {
 
     private fun authHeader(): String = "Bearer ${prefs.token ?: ""}"
 
-    suspend fun register(email: String, name: String, pin: String): Result<AuthResponse> =
+    suspend fun register(email: String, fullName: String, pin: String): Result<AuthResponse> =
         withContext(Dispatchers.IO) {
-            runCatching { api.register(RegisterRequest(email, name, pin)) }
+            runCatching {
+                val idToken = FirebaseAuthHelper.ensureUserAndGetIdToken(email)
+                api.register(RegisterRequest(idToken, fullName, pin))
+            }
         }
 
     suspend fun loginPin(email: String, pin: String): Result<AuthResponse> =
@@ -43,9 +46,13 @@ class Repository(private val prefs: Prefs) {
     fun saveSession(token: String?, user: User?) {
         prefs.token = token
         prefs.email = user?.email
-        prefs.name = user?.name
+        prefs.name = user?.displayName
     }
 
     fun savePin(pin: String) { prefs.pin = pin }
-    fun clearSession() { prefs.clear() }
+
+    fun clearSession() {
+        FirebaseAuthHelper.signOut()
+        prefs.clear()
+    }
 }

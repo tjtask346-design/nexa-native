@@ -10,13 +10,18 @@ import java.util.concurrent.TimeUnit
 const val BASE_URL = "https://nexa-backend-w3xb.onrender.com"
 
 data class User(
-    val _id: String? = null,
     val id: String? = null,
+    val _id: String? = null,
     val email: String = "",
-    val name: String = "",
+    val fullName: String = "",
+    val accountNumber: String = "",
     val balance: Double = 0.0,
-    val role: String = "user"
-)
+    val role: String = "user",
+    val uid: String? = null
+) {
+    val displayName: String
+        get() = fullName.ifBlank { email.substringBefore("@") }
+}
 
 data class AuthResponse(
     val success: Boolean = false,
@@ -55,8 +60,16 @@ data class TxListResponse(
     val message: String? = null
 )
 
-data class RegisterRequest(val email: String, val name: String, val pin: String)
-data class LoginPinRequest(val email: String, val pin: String)
+data class RegisterRequest(
+    val idToken: String,
+    val fullName: String,
+    val pin: String
+)
+
+data class LoginPinRequest(
+    val email: String,
+    val pin: String
+)
 
 data class DepositRequest(
     val method: String,
@@ -103,9 +116,9 @@ interface NexaApi {
 
 object ApiClient {
     private val client = OkHttpClient.Builder()
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(90, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(90, TimeUnit.SECONDS)
         .addInterceptor(HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         })

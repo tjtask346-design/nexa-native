@@ -1,13 +1,14 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 android {
     namespace = "com.nexa.app"
     compileSdk = 34
     defaultConfig {
-        applicationId = "com.nexa.app"
+        applicationId = "com.aim.nexa"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
@@ -48,4 +49,6 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("com.google.zxing:core:3.5.3")
+    implementation(platform("com.google.firebase:firebase-bom:32.7.2"))
+    implementation("com.google.firebase:firebase-auth-ktx")
 }
