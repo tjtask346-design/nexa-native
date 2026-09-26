@@ -81,7 +81,7 @@ fun HistoryScreen(nav: NavController, repo: Repository) {
             }
         }
 
-        NexaBottomBar(Routes.HISTORY) { nav.navigate(it) }
+        NexaBottomBar(Routes.HISTORY, onNavigate = { nav.navigate(it) })
     }
 }
 

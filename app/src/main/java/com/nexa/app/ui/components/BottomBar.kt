@@ -23,9 +23,10 @@ import com.nexa.app.ui.theme.*
 @Composable
 fun NexaBottomBar(
     currentRoute: String,
-    onFabClick: () -> Unit = { },
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    onFabClick: (() -> Unit)? = null
 ) {
+    val fabAction: () -> Unit = onFabClick ?: { onNavigate(Routes.DEPOSIT) }
     Row(
         Modifier
             .fillMaxWidth()
@@ -47,7 +48,7 @@ fun NexaBottomBar(
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = onFabClick
+                    onClick = fabAction
                 ),
             contentAlignment = Alignment.Center
         ) {

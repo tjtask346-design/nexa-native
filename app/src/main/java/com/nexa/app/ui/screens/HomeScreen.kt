@@ -217,7 +217,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             }
         }
 
-        NexaBottomBar(Routes.HOME) { nav.navigate(it) }
+        NexaBottomBar(Routes.HOME, onNavigate = { nav.navigate(it) })
     }
 }
 

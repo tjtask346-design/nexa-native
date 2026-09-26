@@ -10,6 +10,14 @@ import java.util.concurrent.TimeUnit
 
 const val BASE_URL = "https://nexa-backend-w3xb.onrender.com"
 
+object NexaConfig {
+    const val BDT_RATE = 122.0
+    const val ADMIN_BKASH_NUMBER = "01772277956"
+    const val ADMIN_BKASH_NAME = "Nexa Admin"
+    const val MIN_DEPOSIT_USD = 10.0
+    const val MIN_WITHDRAW_USD = 20.0
+}
+
 /* ═══════════════════════════════════════
    User — matches backend response
    register/login returns `id`, /me returns `_id`

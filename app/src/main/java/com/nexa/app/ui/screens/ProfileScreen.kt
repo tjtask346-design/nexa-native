@@ -100,7 +100,7 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
             )
         }
 
-        NexaBottomBar(Routes.PROFILE) { nav.navigate(it) }
+        NexaBottomBar(Routes.PROFILE, onNavigate = { nav.navigate(it) })
     }
 }
 
