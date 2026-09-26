@@ -9,15 +9,24 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.SupportAgent
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -25,10 +34,14 @@ import com.nexa.app.R
 import com.nexa.app.data.Prefs
 import com.nexa.app.nav.Routes
 import com.nexa.app.ui.components.NexaBottomBar
+import com.nexa.app.ui.components.NexaFabSheet
 import com.nexa.app.ui.theme.*
 
 @Composable
 fun ProfileScreen(nav: NavController, prefs: Prefs) {
+    var showFabSheet by remember { mutableStateOf(false) }
+    var biometricOn by remember { mutableStateOf(prefs.biometricEnabled) }
+
     Column(Modifier.fillMaxSize().background(NexaBg)) {
         Column(
             Modifier
@@ -38,12 +51,11 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
         ) {
             Text(
                 "Profile",
-                color = NexaText,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 20.sp,
+                color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp,
                 modifier = Modifier.padding(start = 20.dp, top = 30.dp, bottom = 16.dp)
             )
 
+            // Avatar + name
             Column(
                 Modifier.fillMaxWidth().padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -75,17 +87,29 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                 }
             }
 
+            // Menu
             Column(
                 Modifier
                     .padding(horizontal = 20.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(NexaSurface)
             ) {
-                ProfileRow("📱", "My QR Code", "Receive instant Nexa payments") { nav.navigate(Routes.MYQR) }
-                ProfileRow("👆", "Fingerprint", "Biometric unlock enabled") { }
-                ProfileRow("🛡️", "KYC Verification", "Complete your verification") { }
-                ProfileRow("💬", "Support", "24/7 live chat") { }
-                ProfileRow("🚪", "Log Out", "Sign out of your account") {
+                ProfileRow(Icons.Filled.QrCode, NexaGreen, "My QR Code", "Receive instant Nexa payments") {
+                    nav.navigate(Routes.MYQR)
+                }
+                ProfileRow(
+                    Icons.Filled.Fingerprint, NexaTeal,
+                    "Fingerprint",
+                    if (biometricOn) "Enabled — tap to disable" else "Disabled — tap to enable"
+                ) {
+                    biometricOn = !biometricOn
+                    prefs.biometricEnabled = biometricOn
+                }
+                ProfileRow(Icons.Filled.VerifiedUser, NexaGreen, "KYC Verification", "Complete your verification") {
+                    nav.navigate(Routes.KYC)
+                }
+                ProfileRow(Icons.Filled.SupportAgent, NexaTeal, "Support", "24/7 live chat") { }
+                ProfileRow(Icons.AutoMirrored.Filled.Logout, NexaRed, "Log Out", "Sign out of your account") {
                     prefs.clear()
                     nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
                 }
@@ -93,19 +117,35 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
 
             Text(
                 "Nexa v1.0.0",
-                color = NexaDim,
-                fontSize = 11.sp,
+                color = NexaDim, fontSize = 11.sp,
                 modifier = Modifier.fillMaxWidth().padding(top = 30.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
 
-        NexaBottomBar(Routes.PROFILE, onNavigate = { nav.navigate(it) })
+        NexaBottomBar(
+            currentRoute = Routes.PROFILE,
+            onNavigate = { nav.navigate(it) },
+            onFabClick = { showFabSheet = true }
+        )
+    }
+
+    if (showFabSheet) {
+        NexaFabSheet(
+            onDismiss = { showFabSheet = false },
+            onNavigate = { nav.navigate(it) }
+        )
     }
 }
 
 @Composable
-private fun ProfileRow(emoji: String, title: String, subtitle: String, onClick: () -> Unit) {
+private fun ProfileRow(
+    icon: ImageVector,
+    tint: Color,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -122,13 +162,15 @@ private fun ProfileRow(emoji: String, title: String, subtitle: String, onClick: 
             Modifier
                 .size(34.dp)
                 .clip(RoundedCornerShape(11.dp))
-                .background(NexaSurface3),
+                .background(tint.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
-        ) { Text(emoji, fontSize = 15.sp) }
+        ) {
+            Icon(icon, contentDescription = title, tint = tint, modifier = Modifier.size(18.dp))
+        }
         Column(Modifier.weight(1f)) {
             Text(title, color = NexaText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
             Text(subtitle, color = NexaDim, fontSize = 11.sp)
         }
-        Text("›", color = NexaDim, fontSize = 18.sp)
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = NexaDim, modifier = Modifier.size(20.dp))
     }
 }

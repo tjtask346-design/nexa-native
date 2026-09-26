@@ -33,5 +33,9 @@ class Prefs(context: Context) {
         get() = sp.getString("pin", null)
         set(v) = sp.edit().putString("pin", v).apply()
 
+    var biometricEnabled: Boolean
+        get() = sp.getBoolean("biometric", false)
+        set(v) = sp.edit().putBoolean("biometric", v).apply()
+
     fun clear() = sp.edit().clear().apply()
 }

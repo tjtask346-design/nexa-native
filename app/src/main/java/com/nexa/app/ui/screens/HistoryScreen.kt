@@ -21,12 +21,14 @@ import com.nexa.app.data.Repository
 import com.nexa.app.data.Transaction
 import com.nexa.app.nav.Routes
 import com.nexa.app.ui.components.NexaBottomBar
+import com.nexa.app.ui.components.NexaFabSheet
 import com.nexa.app.ui.theme.*
 
 @Composable
 fun HistoryScreen(nav: NavController, repo: Repository) {
     var all by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var filter by remember { mutableStateOf("all") }
+    var showFabSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         repo.myTransactions().onSuccess { all = it.transactions }
@@ -81,7 +83,19 @@ fun HistoryScreen(nav: NavController, repo: Repository) {
             }
         }
 
-        NexaBottomBar(Routes.HISTORY, onNavigate = { nav.navigate(it) })
+        NexaBottomBar(
+            currentRoute = Routes.HISTORY,
+            onNavigate = { nav.navigate(it) },
+            onFabClick = { showFabSheet = true }
+        )
+    }
+
+    if (showFabSheet) {
+        NexaFabSheet(
+            onDismiss = { showFabSheet = false },
+            onNavigate = { nav.navigate(it) }
+        )
+    }
     }
 }
 

@@ -29,6 +29,7 @@ import com.nexa.app.data.Repository
 import com.nexa.app.data.Transaction
 import com.nexa.app.nav.Routes
 import com.nexa.app.ui.components.NexaBottomBar
+import com.nexa.app.ui.components.NexaFabSheet
 import com.nexa.app.ui.theme.*
 
 @Composable
@@ -37,6 +38,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var txs by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var hidden by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
+    var showFabSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         repo.me().onSuccess { me ->
@@ -217,7 +219,18 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             }
         }
 
-        NexaBottomBar(Routes.HOME, onNavigate = { nav.navigate(it) })
+        NexaBottomBar(
+            currentRoute = Routes.HOME,
+            onNavigate = { nav.navigate(it) },
+            onFabClick = { showFabSheet = true }
+        )
+    }
+
+    if (showFabSheet) {
+        NexaFabSheet(
+            onDismiss = { showFabSheet = false },
+            onNavigate = { nav.navigate(it) }
+        )
     }
 }
 
