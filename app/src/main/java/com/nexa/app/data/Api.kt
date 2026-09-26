@@ -1,5 +1,6 @@
 package com.nexa.app.data
 
+import com.google.gson.annotations.SerializedName
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -9,18 +10,26 @@ import java.util.concurrent.TimeUnit
 
 const val BASE_URL = "https://nexa-backend-w3xb.onrender.com"
 
+/* ═══════════════════════════════════════
+   User — matches backend response
+   register/login returns `id`, /me returns `_id`
+   ═══════════════════════════════════════ */
 data class User(
+    @SerializedName(value = "id", alternate = ["_id"])
     val id: String? = null,
-    val _id: String? = null,
     val email: String = "",
     val fullName: String = "",
     val accountNumber: String = "",
-    val balance: Double = 0.0,
     val role: String = "user",
-    val uid: String? = null
+    val balance: Double = 0.0,
+    val uid: String? = null,
+    val kycStatus: String = "unverified"
 ) {
     val displayName: String
         get() = fullName.ifBlank { email.substringBefore("@") }
+
+    val handle: String
+        get() = "@" + email.substringBefore("@").lowercase()
 }
 
 data class AuthResponse(
@@ -36,30 +45,28 @@ data class MeResponse(
     val message: String? = null
 )
 
-data class BalanceResponse(
-    val success: Boolean = false,
-    val balance: Double = 0.0,
-    val message: String? = null
-)
-
 data class Transaction(
-    val _id: String? = null,
+    @SerializedName(value = "_id", alternate = ["id"])
     val id: String? = null,
-    val type: String = "",
-    val method: String = "",
+    val type: String = "",              // deposit | transfer | cashout
     val amount: Double = 0.0,
-    val status: String = "pending",
-    val createdAt: String? = null,
-    val transactionId: String? = null
+    val status: String = "pending",     // pending | approved | rejected
+    val trxId: String? = null,
+    val senderUid: String? = null,
+    val receiverUid: String? = null,
+    val paymentMethodNumber: String? = null,
+    val createdAt: String? = null
 )
 
 data class TxListResponse(
     val success: Boolean = false,
     val transactions: List<Transaction> = emptyList(),
-    val data: List<Transaction> = emptyList(),
     val message: String? = null
 )
 
+/* ═══════════════════════════════════════
+   Requests — match backend exactly
+   ═══════════════════════════════════════ */
 data class RegisterRequest(
     val idToken: String,
     val fullName: String,
@@ -72,17 +79,20 @@ data class LoginPinRequest(
 )
 
 data class DepositRequest(
-    val method: String,
     val amount: Double,
-    val trxId: String? = null,
-    val senderNumber: String? = null,
-    val currency: String? = null
+    val trxId: String,
+    val paymentMethodNumber: String? = null
 )
 
-data class WithdrawRequest(
-    val method: String,
+data class CashoutRequest(
     val amount: Double,
-    val destination: String
+    val paymentMethodNumber: String? = null
+)
+
+data class SendMoneyRequest(
+    val receiverUid: String,
+    val amount: Double,
+    val pin: String
 )
 
 interface NexaApi {
@@ -95,9 +105,6 @@ interface NexaApi {
     @GET("/api/auth/me")
     suspend fun me(@Header("Authorization") token: String): MeResponse
 
-    @GET("/api/user/balance")
-    suspend fun balance(@Header("Authorization") token: String): BalanceResponse
-
     @GET("/api/transaction/my")
     suspend fun myTransactions(@Header("Authorization") token: String): TxListResponse
 
@@ -107,10 +114,16 @@ interface NexaApi {
         @Body body: DepositRequest
     ): AuthResponse
 
-    @POST("/api/transaction/withdraw/request")
-    suspend fun withdrawRequest(
+    @POST("/api/transaction/cashout/request")
+    suspend fun cashoutRequest(
         @Header("Authorization") token: String,
-        @Body body: WithdrawRequest
+        @Body body: CashoutRequest
+    ): AuthResponse
+
+    @POST("/api/transaction/send")
+    suspend fun sendMoney(
+        @Header("Authorization") token: String,
+        @Body body: SendMoneyRequest
     ): AuthResponse
 }
 

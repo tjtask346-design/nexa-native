@@ -1,6 +1,9 @@
 package com.nexa.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,60 +19,95 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.nexa.app.data.Repository
 import com.nexa.app.data.Transaction
-import com.nexa.app.ui.components.clickableBack
+import com.nexa.app.nav.Routes
+import com.nexa.app.ui.components.NexaBottomBar
 import com.nexa.app.ui.theme.*
 
 @Composable
 fun HistoryScreen(nav: NavController, repo: Repository) {
-    var txs by remember { mutableStateOf<List<Transaction>>(emptyList()) }
+    var all by remember { mutableStateOf<List<Transaction>>(emptyList()) }
+    var filter by remember { mutableStateOf("all") }
+
     LaunchedEffect(Unit) {
-        repo.myTransactions().onSuccess { r -> txs = r.transactions.ifEmpty { r.data } }
+        repo.myTransactions().onSuccess { all = it.transactions }
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(NexaBg)
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp)
-    ) {
-        Spacer(Modifier.height(24.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("←", color = NexaText, fontSize = 24.sp, modifier = Modifier.clickableBack { nav.popBackStack() })
-            Spacer(Modifier.width(16.dp))
-            Text("History", color = NexaText, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-        }
-        Spacer(Modifier.height(24.dp))
+    val list = when (filter) {
+        "deposit" -> all.filter { it.type == "deposit" }
+        "cashout" -> all.filter { it.type == "cashout" }
+        "transfer" -> all.filter { it.type == "transfer" }
+        else -> all
+    }
 
-        if (txs.isEmpty()) {
-            Box(Modifier.fillMaxWidth().padding(60.dp), contentAlignment = Alignment.Center) {
-                Text("No transactions yet", color = NexaDim)
-            }
-        }
-        txs.forEach { tx ->
-            Box(
+    Column(Modifier.fillMaxSize().background(NexaBg)) {
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 20.dp)
+        ) {
+            Text(
+                "Transaction History",
+                color = NexaText,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 20.sp,
+                modifier = Modifier.padding(start = 20.dp, top = 30.dp, bottom = 16.dp)
+            )
+
+            Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-                    .clip(RoundedCornerShape(17.dp))
-                    .background(NexaSurface)
-                    .padding(14.dp)
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            (if (tx.type == "deposit") "Deposit" else "Withdraw") + " · " + tx.method,
-                            color = NexaText, fontWeight = FontWeight.SemiBold, fontSize = 13.sp
-                        )
-                        Text(tx.createdAt ?: "", color = NexaDim, fontSize = 11.sp)
-                    }
-                    Text(
-                        (if (tx.type == "deposit") "+" else "−") + "$" + String.format("%.2f", tx.amount),
-                        color = if (tx.type == "deposit") NexaGreen else NexaText,
-                        fontWeight = FontWeight.Bold, fontSize = 14.sp
-                    )
+                FilterChip("All", filter == "all") { filter = "all" }
+                FilterChip("Deposits", filter == "deposit") { filter = "deposit" }
+                FilterChip("Withdrawals", filter == "cashout") { filter = "cashout" }
+                FilterChip("Sent", filter == "transfer") { filter = "transfer" }
+            }
+
+            if (list.isEmpty()) {
+                Box(Modifier.fillMaxWidth().padding(60.dp), contentAlignment = Alignment.Center) {
+                    Text("No transactions found", color = NexaDim, fontSize = 13.sp)
+                }
+            } else {
+                Column(
+                    Modifier.padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(9.dp)
+                ) {
+                    list.forEach { tx -> TxRow(tx) }
                 }
             }
         }
+
+        NexaBottomBar(Routes.HISTORY) { nav.navigate(it) }
+    }
+}
+
+@Composable
+private fun FilterChip(label: String, active: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (active) NexaGreen.copy(alpha = 0.12f) else NexaSurface)
+            .border(
+                1.dp,
+                if (active) NexaGreen.copy(alpha = 0.45f) else NexaBorder.copy(alpha = 0.09f),
+                RoundedCornerShape(12.dp)
+            )
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 16.dp, vertical = 9.dp)
+    ) {
+        Text(
+            label,
+            color = if (active) NexaGreen else NexaMuted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
