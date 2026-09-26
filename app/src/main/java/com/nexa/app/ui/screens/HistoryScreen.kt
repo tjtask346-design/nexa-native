@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.nexa.app.data.Prefs
 import com.nexa.app.data.Repository
 import com.nexa.app.data.Transaction
 import com.nexa.app.nav.Routes
@@ -25,7 +26,7 @@ import com.nexa.app.ui.components.NexaFabSheet
 import com.nexa.app.ui.theme.*
 
 @Composable
-fun HistoryScreen(nav: NavController, repo: Repository) {
+fun HistoryScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var all by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var filter by remember { mutableStateOf("all") }
     var showFabSheet by remember { mutableStateOf(false) }
@@ -70,7 +71,10 @@ fun HistoryScreen(nav: NavController, repo: Repository) {
             }
 
             if (list.isEmpty()) {
-                Box(Modifier.fillMaxWidth().padding(60.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.fillMaxWidth().padding(60.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text("No transactions found", color = NexaDim, fontSize = 13.sp)
                 }
             } else {
@@ -95,7 +99,6 @@ fun HistoryScreen(nav: NavController, repo: Repository) {
             onDismiss = { showFabSheet = false },
             onNavigate = { nav.navigate(it) }
         )
-    }
     }
 }
 

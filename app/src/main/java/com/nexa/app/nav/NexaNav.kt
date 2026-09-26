@@ -21,6 +21,7 @@ object Routes {
     const val LOGIN = "login"
     const val SIGNUP = "signup"
     const val PIN = "pin"
+    const val VERIFY_EMAIL = "verify_email"
     const val HOME = "home"
     const val HISTORY = "history"
     const val PROFILE = "profile"
@@ -28,7 +29,10 @@ object Routes {
     const val WITHDRAW = "withdraw"
     const val MYQR = "myqr"
     const val SCAN = "scan"
+    const val SEND = "send"
     const val SUCCESS = "success"
+    const val KYC = "kyc"
+    const val ADMIN = "admin"
 }
 
 private val NexaEase = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
@@ -41,12 +45,18 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
         navController = nav,
         startDestination = Routes.SPLASH,
         enterTransition = {
-            slideInHorizontally(initialOffsetX = { it / 6 }, animationSpec = tween(320, easing = NexaEase)) + fadeIn(tween(300))
+            slideInHorizontally(
+                initialOffsetX = { it / 6 },
+                animationSpec = tween(320, easing = NexaEase)
+            ) + fadeIn(tween(300))
         },
         exitTransition = { fadeOut(tween(180)) },
         popEnterTransition = { fadeIn(tween(220)) },
         popExitTransition = {
-            slideOutHorizontally(targetOffsetX = { it / 6 }, animationSpec = tween(280, easing = NexaEase)) + fadeOut(tween(200))
+            slideOutHorizontally(
+                targetOffsetX = { it / 6 },
+                animationSpec = tween(280, easing = NexaEase)
+            ) + fadeOut(tween(200))
         }
     ) {
         composable(Routes.SPLASH) {
@@ -58,17 +68,18 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
         composable(Routes.LOGIN)  { LoginScreen(nav, prefs) }
         composable(Routes.SIGNUP) { SignupScreen(nav, prefs) }
         composable(Routes.PIN)    { PinScreen(nav, prefs, repo) }
+        composable(Routes.VERIFY_EMAIL) { VerifyEmailScreen(nav, prefs, repo) }
 
         composable(Routes.HOME)    { HomeScreen(nav, prefs, repo) }
-        composable(Routes.HISTORY) { HistoryScreen(nav, repo) }
+        composable(Routes.HISTORY) { HistoryScreen(nav, prefs, repo) }
         composable(Routes.PROFILE) { ProfileScreen(nav, prefs) }
 
         composable(Routes.DEPOSIT)  { DepositScreen(nav, repo) }
-        composable(Routes.WITHDRAW) { WithdrawScreen(nav, repo) }
+        composable(Routes.WITHDRAW) { WithdrawScreen(nav, prefs, repo) }
         composable(Routes.MYQR)     { MyQrScreen(nav, prefs) }
-
-        // SCAN → route to MyQr placeholder for now (real scanner comes in later step)
-        composable(Routes.SCAN) { MyQrScreen(nav, prefs) }
+        composable(Routes.SCAN)     { ScanScreen(nav, prefs) }
+        composable(Routes.SEND)     { SendScreen(nav, prefs, repo) }
+        composable(Routes.KYC)      { KycScreen(nav, prefs, repo) }
 
         composable(
             route = Routes.SUCCESS + "?kind={kind}&amount={amount}&id={id}",
