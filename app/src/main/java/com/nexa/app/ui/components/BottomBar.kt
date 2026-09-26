@@ -23,8 +23,8 @@ import com.nexa.app.ui.theme.*
 @Composable
 fun NexaBottomBar(
     currentRoute: String,
-    onNavigate: (String) -> Unit,
-    onFabClick: () -> Unit = { onNavigate(Routes.DEPOSIT) }
+    onFabClick: () -> Unit = { },
+    onNavigate: (String) -> Unit
 ) {
     Row(
         Modifier

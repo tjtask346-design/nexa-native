@@ -41,12 +41,12 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
         navController = nav,
         startDestination = Routes.SPLASH,
         enterTransition = {
-            slideInHorizontally({ it / 6 }, tween(320, easing = NexaEase)) + fadeIn(tween(300))
+            slideInHorizontally(initialOffsetX = { it / 6 }, animationSpec = tween(320, easing = NexaEase)) + fadeIn(tween(300))
         },
         exitTransition = { fadeOut(tween(180)) },
         popEnterTransition = { fadeIn(tween(220)) },
         popExitTransition = {
-            slideOutHorizontally({ it / 6 }, tween(280, easing = NexaEase)) + fadeOut(tween(200))
+            slideOutHorizontally(targetOffsetX = { it / 6 }, animationSpec = tween(280, easing = NexaEase)) + fadeOut(tween(200))
         }
     ) {
         composable(Routes.SPLASH) {
