@@ -29,6 +29,7 @@ import com.nexa.app.ui.components.NexaIconButton
 import com.nexa.app.ui.components.PinDots
 import com.nexa.app.ui.components.PinKeypad
 import com.nexa.app.ui.theme.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -46,28 +47,31 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var fpActive by remember { mutableStateOf(false) }
     var fpLaunchAttempted by remember { mutableStateOf(false) }
 
-    // Hardware check + user preference
     val hardwareAvailable = remember { BiometricHelper.isAvailable(ctx) }
-    // Show fingerprint ONLY if: login mode + PIN saved + hardware exists + user enabled biometric
     val showFingerprint = mode == "login" &&
         prefs.pin != null &&
         hardwareAvailable &&
         prefs.biometricEnabled &&
         activity != null
 
+    fun onSignupFailure(msg: String) {
+        error = msg
+        shakeTrigger++
+        buffer = ""
+        busy = false
+    }
+
     fun submitSignup(pin: String) {
         scope.launch {
-            busy = true; error = null
+            busy = true
+            error = null
             val email = AuthState.pendingEmail ?: prefs.email ?: ""
-            val name  = AuthState.pendingName  ?: prefs.name  ?: email.substringBefore("@")
-            val fbResult = repo.createFirebaseUser(email)
-            fbResult.onFailure {
-                error = it.message ?: "Firebase error"
-                shakeTrigger++; buffer = ""; busy = false
+            val res = repo.createFirebaseUser(email)
+            if (res.isFailure) {
+                onSignupFailure(res.exceptionOrNull()?.message ?: "Firebase error")
                 return@launch
             }
             repo.savePin(pin)
-            AuthState.pendingName = name
             busy = false
             nav.navigate(Routes.VERIFY_EMAIL) { popUpTo(Routes.PIN) { inclusive = true } }
         }
@@ -75,7 +79,8 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
     fun submitLogin(pin: String) {
         scope.launch {
-            busy = true; error = null
+            busy = true
+            error = null
             val email = AuthState.pendingEmail ?: prefs.email ?: ""
             val res = repo.loginPin(email, pin)
             res.onSuccess { r ->
@@ -85,10 +90,14 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     AuthState.reset()
                     nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
                 } else {
-                    error = r.message ?: "Login failed"; shakeTrigger++; buffer = ""
+                    error = r.message ?: "Login failed"
+                    shakeTrigger++
+                    buffer = ""
                 }
             }.onFailure {
-                error = it.message ?: "Network error"; shakeTrigger++; buffer = ""
+                error = it.message ?: "Network error"
+                shakeTrigger++
+                buffer = ""
             }
             busy = false
         }
@@ -96,14 +105,26 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
     fun onDigit(d: String) {
         if (buffer.length >= 5 || busy) return
-        buffer += d; error = null
+        buffer += d
+        error = null
         if (buffer.length == 5) {
             val pin = buffer
             when (mode) {
-                "setup" -> { firstPin = pin; mode = "confirm"; buffer = "" }
+                "setup" -> {
+                    firstPin = pin
+                    mode = "confirm"
+                    buffer = ""
+                }
                 "confirm" -> {
-                    if (pin == firstPin) submitSignup(pin)
-                    else { error = "PINs do not match"; shakeTrigger++; buffer = ""; mode = "setup"; firstPin = "" }
+                    if (pin == firstPin) {
+                        submitSignup(pin)
+                    } else {
+                        error = "PINs do not match"
+                        shakeTrigger++
+                        buffer = ""
+                        mode = "setup"
+                        firstPin = ""
+                    }
                 }
                 else -> submitLogin(pin)
             }
@@ -119,18 +140,14 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             title = "Unlock Nexa",
             subtitle = "Place your finger",
             onPin = { pin -> fpActive = false; submitLogin(pin) },
-            onError = { msg ->
-                fpActive = false
-                if (!msg.contains("cancel", true)) error = null
-            }
+            onError = { fpActive = false }
         )
     }
 
-    // Auto-launch fingerprint when login mode + enrolled + hardware available
     LaunchedEffect(mode, showFingerprint) {
         if (mode == "login" && showFingerprint && !fpLaunchAttempted) {
             fpLaunchAttempted = true
-            kotlinx.coroutines.delay(400)
+            delay(400)
             launchFingerprint()
         }
         if (mode != "login") fpLaunchAttempted = false
@@ -139,8 +156,11 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     Column(Modifier.fillMaxSize().background(NexaBg).padding(horizontal = 24.dp)) {
         Spacer(Modifier.height(22.dp))
         NexaIconButton(onClick = {
-            if (mode == "confirm") { mode = "setup"; firstPin = ""; buffer = "" }
-            else nav.popBackStack()
+            if (mode == "confirm") {
+                mode = "setup"; firstPin = ""; buffer = ""
+            } else {
+                nav.popBackStack()
+            }
         }) { Text("←", color = NexaText, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
 
         Spacer(Modifier.height(30.dp))
@@ -153,26 +173,37 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             Text(
                 when (mode) { "setup" -> "Create your PIN"; "confirm" -> "Confirm your PIN"; else -> "Enter your PIN" },
                 color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp,
-                letterSpacing = (-0.5).sp, modifier = Modifier.fadeUp(100))
+                letterSpacing = (-0.5).sp, modifier = Modifier.fadeUp(100)
+            )
             Spacer(Modifier.height(8.dp))
             Text(
                 when (mode) { "setup" -> "Choose a 5-digit PIN"; "confirm" -> "Enter the same PIN again"; else -> "Enter your 5-digit PIN to unlock" },
                 color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center, modifier = Modifier.fadeUp(150))
+                textAlign = TextAlign.Center, modifier = Modifier.fadeUp(150)
+            )
         }
 
         Spacer(Modifier.height(44.dp))
+
         Box(Modifier.fillMaxWidth().shake(shakeTrigger), contentAlignment = Alignment.Center) {
             PinDots(filled = buffer.length, error = error != null)
         }
+
         Spacer(Modifier.height(14.dp))
         Text(
-            text = when { error != null -> error!!; busy -> "Please wait…"; else -> "" },
-            color = if (error != null) NexaRed else NexaMuted, fontSize = 12.5.sp,
-            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().height(20.dp))
+            text = when {
+                error != null -> error!!
+                busy -> "Please wait…"
+                else -> ""
+            },
+            color = if (error != null) NexaRed else NexaMuted,
+            fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().height(20.dp)
+        )
 
         Spacer(Modifier.weight(1f))
+
         PinKeypad(
             onDigit = ::onDigit,
             onDelete = { buffer = buffer.dropLast(1); error = null },

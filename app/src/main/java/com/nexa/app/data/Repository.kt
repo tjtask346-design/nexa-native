@@ -26,6 +26,11 @@ class Repository(private val prefs: Prefs) {
     private inline fun <T> wrap(block: () -> T): Result<T> =
         runCatching(block).recoverCatching { throw Exception(errorMessage(it)) }
 
+    /** Step 1 of signup: create Firebase user + send verification email */
+    suspend fun createFirebaseUser(email: String): Result<String> = withContext(Dispatchers.IO) {
+        wrap { FirebaseAuthHelper.createUserAndSendVerification(email) }
+    }
+
     suspend fun register(email: String, fullName: String, pin: String): Result<AuthResponse> =
         withContext(Dispatchers.IO) {
             wrap {
