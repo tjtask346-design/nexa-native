@@ -29,7 +29,7 @@ class Repository(private val prefs: Prefs) {
     suspend fun register(email: String, fullName: String, pin: String): Result<AuthResponse> =
         withContext(Dispatchers.IO) {
             wrap {
-                val idToken = FirebaseAuthHelper.ensureUserAndGetIdToken(email)
+                val idToken = FirebaseAuthHelper.createUserAndSendVerification(email)
                 api.register(RegisterRequest(idToken, fullName, pin))
             }
         }
