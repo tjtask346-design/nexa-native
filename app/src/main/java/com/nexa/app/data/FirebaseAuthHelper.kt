@@ -15,7 +15,8 @@ object FirebaseAuthHelper {
         return "Nx" + digest.joinToString("") { "%02x".format(it) }.take(30)
     }
 
-    suspend fun ensureUserAndGetIdToken(email: String): String {
+    /** Create Firebase user + send verification email, return idToken */
+    suspend fun createUserAndSendVerification(email: String): String {
         val normalized = email.lowercase().trim()
         val password = derivePassword(normalized)
 
@@ -37,8 +38,42 @@ object FirebaseAuthHelper {
         }
 
         val user = auth.currentUser ?: throw IllegalStateException("Firebase user null")
+
+        try {
+            if (!user.isEmailVerified) {
+                user.sendEmailVerification().await()
+            }
+        } catch (_: Exception) { }
+
         val tokenResult = user.getIdToken(true).await()
         return tokenResult.token ?: throw IllegalStateException("idToken null")
+    }
+
+    /** Resend verification email to current user */
+    suspend fun resendVerificationEmail(): Boolean {
+        val user = auth.currentUser ?: return false
+        return try {
+            if (!user.isEmailVerified) {
+                user.sendEmailVerification().await()
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** Check if current Firebase user has verified email */
+    suspend fun isEmailVerified(): Boolean {
+        val user = auth.currentUser ?: return false
+        try { user.reload().await() } catch (_: Exception) { }
+        return user.isEmailVerified
+    }
+
+    /** Get fresh idToken for current user */
+    suspend fun currentIdToken(): String? {
+        return try {
+            auth.currentUser?.getIdToken(true)?.await()?.token
+        } catch (_: Exception) { null }
     }
 
     fun signOut() { try { auth.signOut() } catch (_: Exception) {} }

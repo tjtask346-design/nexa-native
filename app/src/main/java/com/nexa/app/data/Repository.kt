@@ -62,7 +62,19 @@ class Repository(private val prefs: Prefs) {
             wrap { api.sendMoney(authHeader(), SendMoneyRequest(receiverUid, amount, pin)) }
         }
 
-    fun saveSession(token: String?, user: User?) {
+        /* ─── Email verification helpers ─── */
+    suspend fun isEmailVerified(): Boolean = FirebaseAuthHelper.isEmailVerified()
+
+    suspend fun resendVerification(): Result<Unit> = withContext(Dispatchers.IO) {
+        wrap {
+            val ok = FirebaseAuthHelper.resendVerificationEmail()
+            if (!ok) throw Exception("No signed-in user to resend to")
+        }
+    }
+
+    suspend fun currentIdToken(): String? = FirebaseAuthHelper.currentIdToken()
+
+fun saveSession(token: String?, user: User?) {
         prefs.token = token
         prefs.email = user?.email
         prefs.name = user?.displayName
