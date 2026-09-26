@@ -1,5 +1,8 @@
 package com.nexa.app.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -47,6 +50,12 @@ fun DepositScreen(nav: NavController, repo: Repository) {
         trxId.length >= 4 &&
         sender.replace(Regex("[^0-9]"), "").length >= 11
 
+    fun copyToClipboard(label: String, value: String) {
+        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText(label, value))
+        Toast.makeText(ctx, "$label copied", Toast.LENGTH_SHORT).show()
+    }
+
     Column(Modifier.fillMaxSize().background(NexaBg)) {
         Row(
             Modifier.fillMaxWidth().padding(20.dp),
@@ -67,6 +76,7 @@ fun DepositScreen(nav: NavController, repo: Repository) {
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)
         ) {
+            // bKash number card with copy button
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
                     .background(NexaSurface)
@@ -75,10 +85,35 @@ fun DepositScreen(nav: NavController, repo: Repository) {
             ) {
                 Column {
                     Text("Send Money to", color = NexaMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            NexaConfig.ADMIN_BKASH_NUMBER,
+                            color = NexaText, fontWeight = FontWeight.Bold, fontSize = 20.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        // COPY BUTTON
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(NexaGreen.copy(alpha = 0.13f))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    copyToClipboard("bKash number", NexaConfig.ADMIN_BKASH_NUMBER)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text("Copy", color = NexaGreen, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
                     Spacer(Modifier.height(6.dp))
-                    Text(NexaConfig.ADMIN_BKASH_NUMBER, color = NexaText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Spacer(Modifier.height(4.dp))
-                    Text("Then fill the form below", color = NexaDim, fontSize = 11.sp)
+                    Text("Admin bKash (${NexaConfig.ADMIN_BKASH_NAME})", color = NexaDim, fontSize = 11.sp)
                 }
             }
 
@@ -117,7 +152,7 @@ fun DepositScreen(nav: NavController, repo: Repository) {
                     .border(1.dp, NexaTeal.copy(alpha = 0.2f), RoundedCornerShape(15.dp))
                     .padding(14.dp)
             ) {
-                Text("ℹ️  Admin manually verifies each payment. Your balance updates after verification.",
+                Text("ℹ  Step 1: Send money to the number above. Step 2: Fill in the form. Step 3: Submit for admin verification.",
                     color = Color(0xFF7DD3C8), fontSize = 11.5.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium)
             }
 
