@@ -128,6 +128,15 @@ interface NexaApi {
         @Body body: CashoutRequest
     ): AuthResponse
 
+    @POST("/api/kyc/submit")
+    suspend fun submitKyc(
+        @Header("Authorization") token: String,
+        @Body body: KycSubmitRequest
+    ): SimpleResponse
+
+    @GET("/api/kyc/my")
+    suspend fun myKyc(@Header("Authorization") token: String): KycListResponse
+
     @POST("/api/transaction/send")
     suspend fun sendMoney(
         @Header("Authorization") token: String,

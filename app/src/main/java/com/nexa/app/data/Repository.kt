@@ -79,6 +79,16 @@ class Repository(private val prefs: Prefs) {
 
     suspend fun currentIdToken(): String? = FirebaseAuthHelper.currentIdToken()
 
+    /* ─── KYC ─── */
+    suspend fun submitKyc(nid: String, front: String, back: String, selfie: String): Result<SimpleResponse> =
+        withContext(Dispatchers.IO) {
+            wrap { api.submitKyc(authHeader(), KycSubmitRequest(nid, front, back, selfie)) }
+        }
+
+    suspend fun myKyc(): Result<KycListResponse> = withContext(Dispatchers.IO) {
+        wrap { api.myKyc(authHeader()) }
+    }
+
 fun saveSession(token: String?, user: User?) {
         prefs.token = token
         prefs.email = user?.email

@@ -8,6 +8,6 @@
         <item name="android:windowSplashScreenBackground">@color/nexa_bg</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/nexa_bg</item>
-        <item name="android:windowSplashScreenAnimationDuration">200</item>
+        <item name="android:windowSplashScreenAnimationDuration">300</item>
     </style>
 </resources>

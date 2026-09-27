@@ -1,5 +1,6 @@
 package com.nexa.app.ui.screens
 
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,7 +16,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -40,24 +40,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.nexa.app.data.KycSubmission
 import com.nexa.app.data.CloudinaryHelper
+import com.nexa.app.data.KycSubmission
 import com.nexa.app.data.Prefs
 import com.nexa.app.data.Repository
-import com.nexa.app.nav.Routes
 import com.nexa.app.ui.components.GradientButton
 import com.nexa.app.ui.components.NexaIconButton
-import com.nexa.app.ui.components.NexaPlainField
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
 fun KycScreen(nav: NavController, prefs: Prefs, repo: Repository) {
-    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-
     var loading by remember { mutableStateOf(true) }
-    var existing: KycSubmission? by remember { mutableStateOf(null) }
+    var existing by remember { mutableStateOf<KycSubmission?>(null) }
 
     LaunchedEffect(Unit) {
         repo.myKyc().onSuccess { existing = it.kyc }
@@ -65,7 +61,6 @@ fun KycScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     }
 
     Column(Modifier.fillMaxSize().background(NexaBg)) {
-        // Header
         Row(
             Modifier.fillMaxWidth().padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -84,35 +79,38 @@ fun KycScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         }
 
         when {
-            loading -> LoadingView()
-            existing == null -> KycForm(repo, scope, onSubmitted = {
+            loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+                Text("Loading…", color = NexaMuted, fontSize = 14.sp)
+            }
+            existing == null -> KycForm(prefs, repo, scope) {
                 existing = KycSubmission(status = "pending")
-            })
-            existing?.status == "approved" -> ApprovedView()
-            existing?.status == "rejected" -> RejectedView(existing?.adminNote, onRetry = {
+            }
+            existing?.status == "approved" -> StatusView("approved")
+            existing?.status == "rejected" -> StatusView("rejected", existing?.adminNote) {
                 existing = null
-            })
-            else -> PendingView(existing)
+            }
+            else -> StatusView("pending", info = existing?.nidNumber)
         }
     }
 }
 
-/* ═══════════════════════════════════════════════════
-   FORM — user fills and submits
-   ═══════════════════════════════════════════════════ */
 @Composable
-private fun KycForm(repo: Repository, scope: kotlinx.coroutines.CoroutineScope, onSubmitted: () -> Unit) {
+private fun KycForm(
+    prefs: Prefs,
+    repo: Repository,
+    scope: kotlinx.coroutines.CoroutineScope,
+    onSubmitted: () -> Unit
+) {
     val ctx = LocalContext.current
 
-    var nidNumber by remember { mutableStateOf("") }
+    var nid by remember { mutableStateOf("") }
     var frontUri by remember { mutableStateOf<Uri?>(null) }
-    var backUri  by remember { mutableStateOf<Uri?>(null) }
+    var backUri by remember { mutableStateOf<Uri?>(null) }
     var selfieUri by remember { mutableStateOf<Uri?>(null) }
     var busy by remember { mutableStateOf(false) }
-    var errorMsg by remember { mutableStateOf<String?>(null) }
     var statusText by remember { mutableStateOf("") }
+    var errMsg by remember { mutableStateOf<String?>(null) }
 
-    // Gallery pickers
     val frontPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) {
         if (it != null) frontUri = it
     }
@@ -123,13 +121,11 @@ private fun KycForm(repo: Repository, scope: kotlinx.coroutines.CoroutineScope, 
         if (it != null) selfieUri = it
     }
 
-    val canSubmit = !busy &&
-        nidNumber.length >= 10 &&
+    val canSubmit = !busy && nid.length >= 10 &&
         frontUri != null && backUri != null && selfieUri != null
 
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)
-    ) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+
         // Hero
         Column(
             Modifier.fillMaxWidth().padding(vertical = 20.dp),
@@ -141,12 +137,7 @@ private fun KycForm(repo: Repository, scope: kotlinx.coroutines.CoroutineScope, 
                     .border(1.dp, NexaGreen.copy(alpha = 0.3f), RoundedCornerShape(26.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    Icons.Filled.Shield,
-                    contentDescription = null,
-                    tint = NexaGreen,
-                    modifier = Modifier.size(42.dp)
-                )
+                Icon(Icons.Filled.Shield, null, tint = NexaGreen, modifier = Modifier.size(42.dp))
             }
             Spacer(Modifier.height(18.dp))
             Text(
@@ -156,14 +147,25 @@ private fun KycForm(repo: Repository, scope: kotlinx.coroutines.CoroutineScope, 
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "Complete KYC to unlock full access,\nhigher limits and faster withdrawals.",
+                "Complete KYC to unlock full access\nand faster withdrawals.",
                 color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center, lineHeight = 19.sp
             )
         }
 
         // Info card
-        InfoCard()
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                .background(NexaTeal.copy(alpha = 0.07f))
+                .border(1.dp, NexaTeal.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                .padding(14.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("✓  Bangladeshi NID card", color = Color(0xFF7DD3C8), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text("✓  Passport accepted as alternative", color = Color(0xFF7DD3C8), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text("✓  Usually 24–48 hours", color = Color(0xFF7DD3C8), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
 
@@ -171,47 +173,47 @@ private fun KycForm(repo: Repository, scope: kotlinx.coroutines.CoroutineScope, 
         Text(
             "NID NUMBER",
             color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 0.6.sp,
-            modifier = Modifier.padding(bottom = 10.dp)
+            letterSpacing = 0.6.sp, modifier = Modifier.padding(bottom = 10.dp)
         )
-        NIDInput(value = nidNumber, onChange = { nidNumber = it.filter { c -> c.isDigit() }.take(17) })
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                .background(NexaSurface)
+                .border(1.5.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(16.dp))
+                .padding(horizontal = 16.dp)
+        ) {
+            BasicTextField(
+                value = nid,
+                onValueChange = { nid = it.filter { c -> c.isDigit() }.take(17) },
+                singleLine = true,
+                textStyle = TextStyle(color = NexaText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                cursorBrush = SolidColor(NexaGreen),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 15.dp)
+            ) { inner ->
+                Box(Modifier.fillMaxWidth()) {
+                    if (nid.isEmpty()) {
+                        Text("10 or 17 digit NID", color = NexaDim, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    }
+                    inner()
+                }
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
 
-        // Images
         Text(
             "DOCUMENT IMAGES",
             color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 0.6.sp,
-            modifier = Modifier.padding(bottom = 12.dp)
+            letterSpacing = 0.6.sp, modifier = Modifier.padding(bottom = 12.dp)
         )
 
-        ImageSlotCard(
-            label = "Front of NID",
-            subtitle = "Clear photo showing name, photo and number",
-            uri = frontUri,
-            onPick = { frontPicker.launch("image/*") },
-            onClear = { frontUri = null }
-        )
+        ImageSlot("Front of NID", "Name, photo, number visible", frontUri, { frontPicker.launch("image/*") }, { frontUri = null })
         Spacer(Modifier.height(12.dp))
-        ImageSlotCard(
-            label = "Back of NID",
-            subtitle = "Clear photo showing the back side",
-            uri = backUri,
-            onPick = { backPicker.launch("image/*") },
-            onClear = { backUri = null }
-        )
+        ImageSlot("Back of NID", "Clear photo of back side", backUri, { backPicker.launch("image/*") }, { backUri = null })
         Spacer(Modifier.height(12.dp))
-        ImageSlotCard(
-            label = "Selfie",
-            subtitle = "Your face, well lit, no sunglasses or hat",
-            uri = selfieUri,
-            onPick = { selfiePicker.launch("image/*") },
-            onClear = { selfieUri = null }
-        )
+        ImageSlot("Selfie", "Well-lit, no hat/sunglasses", selfieUri, { selfiePicker.launch("image/*") }, { selfieUri = null })
 
-        // Error
-        if (errorMsg != null) {
+        if (errMsg != null) {
             Spacer(Modifier.height(16.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
@@ -219,7 +221,7 @@ private fun KycForm(repo: Repository, scope: kotlinx.coroutines.CoroutineScope, 
                     .border(1.dp, NexaRed.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
                     .padding(14.dp)
             ) {
-                Text(errorMsg!!, color = NexaRed, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                Text(errMsg!!, color = NexaRed, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
             }
         }
 
@@ -231,36 +233,24 @@ private fun KycForm(repo: Repository, scope: kotlinx.coroutines.CoroutineScope, 
             loading = busy,
             onClick = {
                 scope.launch {
-                    busy = true
-                    errorMsg = null
+                    busy = true; errMsg = null
                     try {
-                        val userId = prefs.email?.replace("@", "_")?.replace(".", "_") ?: "user"
-
                         statusText = "Uploading front…"
                         val frontUrl = CloudinaryHelper.uploadKycImage(ctx, frontUri!!, "front")
-
                         statusText = "Uploading back…"
                         val backUrl = CloudinaryHelper.uploadKycImage(ctx, backUri!!, "back")
-
                         statusText = "Uploading selfie…"
                         val selfieUrl = CloudinaryHelper.uploadKycImage(ctx, selfieUri!!, "selfie")
-
                         statusText = "Submitting…"
-                        val res = repo.submitKyc(nidNumber.trim(), frontUrl, backUrl, selfieUrl)
-
+                        val res = repo.submitKyc(nid.trim(), frontUrl, backUrl, selfieUrl)
                         busy = false
                         res.onSuccess { r ->
-                            if (r.success) {
-                                onSubmitted()
-                            } else {
-                                errorMsg = r.message ?: "Submission failed"
-                            }
-                        }.onFailure {
-                            errorMsg = it.message ?: "Network error"
-                        }
+                            if (r.success) onSubmitted()
+                            else errMsg = r.message ?: "Submission failed"
+                        }.onFailure { errMsg = it.message ?: "Network error" }
                     } catch (e: Exception) {
                         busy = false
-                        errorMsg = e.message ?: "Upload failed. Check internet."
+                        errMsg = e.message ?: "Upload failed"
                     }
                 }
             }
@@ -268,81 +258,35 @@ private fun KycForm(repo: Repository, scope: kotlinx.coroutines.CoroutineScope, 
 
         Spacer(Modifier.height(20.dp))
         Text(
-            "Your data is encrypted and only used for verification.",
+            "Your data is encrypted and used only for verification.",
             color = NexaDim, fontSize = 11.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
+            textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(30.dp))
     }
 }
 
 @Composable
-private fun InfoCard() {
-    Box(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-            .background(NexaTeal.copy(alpha = 0.07f))
-            .border(1.dp, NexaTeal.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
-            .padding(14.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            InfoLine("✓", "Bangladeshi NID card accepted")
-            InfoLine("✓", "Passport accepted as alternative")
-            InfoLine("✓", "Verification usually takes 24–48 hours")
-        }
-    }
-}
-
-@Composable
-private fun InfoLine(mark: String, text: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(mark, color = NexaGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        Text(text, color = Color(0xFF7DD3C8), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
-private fun NIDInput(value: String, onChange: (String) -> Unit) {
-    val focused = remember { mutableStateOf(false) }
-    Box(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-            .background(if (focused.value) NexaSurface2 else NexaSurface)
-            .border(
-                1.5.dp,
-                if (focused.value) NexaGreen.copy(alpha = 0.5f) else NexaBorder.copy(alpha = 0.09f),
-                RoundedCornerShape(16.dp)
-            )
-            .padding(horizontal = 16.dp)
-    ) {
-        BasicTextField(
-            value = value,
-            onValueChange = onChange,
-            singleLine = true,
-            textStyle = TextStyle(color = NexaText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-            cursorBrush = SolidColor(NexaGreen),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-                .onFocusChanged { focused.value = it.isFocused }
-                .padding(vertical = 15.dp)
-        ) { inner ->
-            Box(Modifier.fillMaxWidth()) {
-                if (value.isEmpty()) {
-                    Text("10 or 17 digit NID number", color = NexaDim, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                }
-                inner()
-            }
-        }
-    }
-}
-
-@Composable
-private fun ImageSlotCard(
+private fun ImageSlot(
     label: String,
     subtitle: String,
     uri: Uri?,
     onPick: () -> Unit,
     onClear: () -> Unit
 ) {
+    val ctx = LocalContext.current
+
+    // Decode once (composable-safe)
+    val bmp = remember(uri) {
+        if (uri == null) null
+        else try {
+            val stream = ctx.contentResolver.openInputStream(uri)
+            val b = BitmapFactory.decodeStream(stream)
+            stream?.close()
+            b
+        } catch (_: Exception) { null }
+    }
+
     Box(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
             .background(NexaSurface)
@@ -354,47 +298,22 @@ private fun ImageSlotCard(
             )
             .padding(14.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // Preview tile
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(
                 Modifier.size(58.dp).clip(RoundedCornerShape(14.dp))
                     .background(if (uri != null) NexaGreen.copy(alpha = 0.15f) else NexaSurface2)
-                    .border(
-                        1.dp,
-                        if (uri != null) NexaGreen.copy(alpha = 0.4f) else NexaBorder.copy(alpha = 0.12f),
-                        RoundedCornerShape(14.dp)
-                    ),
+                    .border(1.dp, if (uri != null) NexaGreen.copy(alpha = 0.4f) else NexaBorder.copy(alpha = 0.12f), RoundedCornerShape(14.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (uri != null) {
-                    val bmp = remember(uri) {
-                        try {
-                            val stream = LocalContext.current.contentResolver.openInputStream(uri)
-                            val b = android.graphics.BitmapFactory.decodeStream(stream)
-                            stream?.close()
-                            b
-                        } catch (_: Exception) { null }
-                    }
-                    if (bmp != null) {
-                        Image(
-                            bitmap = bmp.asImageBitmap(),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp))
-                        )
-                    } else {
-                        Icon(Icons.Filled.CheckCircle, null, tint = NexaGreen, modifier = Modifier.size(28.dp))
-                    }
-                } else {
-                    Icon(
-                        Icons.Filled.PhotoCamera,
+                if (bmp != null) {
+                    Image(
+                        bitmap = bmp.asImageBitmap(),
                         contentDescription = null,
-                        tint = NexaMuted,
-                        modifier = Modifier.size(24.dp)
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp))
                     )
+                } else {
+                    Icon(Icons.Filled.PhotoCamera, null, tint = NexaMuted, modifier = Modifier.size(24.dp))
                 }
             }
 
@@ -430,144 +349,59 @@ private fun ImageSlotCard(
     }
 }
 
-/* ═══════════════════════════════════════════════════
-   STATUS VIEWS
-   ═══════════════════════════════════════════════════ */
-
 @Composable
-private fun LoadingView() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Loading…", color = NexaMuted, fontSize = 14.sp)
-    }
-}
-
-@Composable
-private fun PendingView(kyc: KycSubmission?) {
+private fun StatusView(status: String, note: String? = null, info: String? = null, onRetry: (() -> Unit)? = null) {
     Column(
         Modifier.fillMaxSize().padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        val (icon, tint, title, subtitle) = when (status) {
+            "approved" -> Quadruple(Icons.Filled.VerifiedUser, NexaGreen, "You're Verified!", "Your identity has been confirmed.")
+            "rejected" -> Quadruple(Icons.Filled.Error, NexaRed, "Verification Failed", note ?: "Documents could not be verified.")
+            else -> Quadruple(Icons.Filled.HourglassEmpty, NexaTeal, "Under Review", "We'll review your submission within 24–48 hours.")
+        }
+
         Box(
             Modifier.size(96.dp).clip(RoundedCornerShape(28.dp))
-                .background(NexaTeal.copy(alpha = 0.15f))
-                .border(1.dp, NexaTeal.copy(alpha = 0.35f), RoundedCornerShape(28.dp)),
+                .background(tint.copy(alpha = 0.15f))
+                .border(1.dp, tint.copy(alpha = 0.4f), RoundedCornerShape(28.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                Icons.Filled.HourglassEmpty,
-                contentDescription = null,
-                tint = NexaTeal,
-                modifier = Modifier.size(44.dp)
-            )
+            Icon(icon, null, tint = tint, modifier = Modifier.size(46.dp))
         }
         Spacer(Modifier.height(24.dp))
-        Text(
-            "Under Review",
-            color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp,
-            letterSpacing = (-0.5).sp
-        )
+        Text(title, color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, letterSpacing = (-0.5).sp)
         Spacer(Modifier.height(10.dp))
-        Text(
-            "Your KYC submission is being reviewed.\nThis usually takes 24–48 hours.",
-            color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center, lineHeight = 19.sp
-        )
+        Text(subtitle, color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center, lineHeight = 19.sp)
 
-        Spacer(Modifier.height(28.dp))
-
-        if (kyc?.nidNumber != null) {
+        if (info != null) {
+            Spacer(Modifier.height(20.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                     .background(NexaSurface)
                     .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(16.dp))
                     .padding(16.dp)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    KVRow("Status", "Pending")
-                    KVRow("NID Number", kyc.nidNumber)
-                    if (kyc.createdAt != null) KVRow("Submitted", kyc.createdAt.take(10))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("NID", color = NexaMuted, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+                    Text(info, color = NexaText, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
-    }
-}
 
-@Composable
-private fun ApprovedView() {
-    Column(
-        Modifier.fillMaxSize().padding(28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            Modifier.size(96.dp).clip(RoundedCornerShape(28.dp))
-                .background(NexaGreen.copy(alpha = 0.15f))
-                .border(1.dp, NexaGreen.copy(alpha = 0.4f), RoundedCornerShape(28.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Filled.VerifiedUser,
-                contentDescription = null,
-                tint = NexaGreen,
-                modifier = Modifier.size(48.dp)
-            )
+        if (status == "rejected" && onRetry != null) {
+            Spacer(Modifier.height(24.dp))
+            GradientButton("Try Again", onClick = onRetry)
         }
-        Spacer(Modifier.height(24.dp))
-        Text(
-            "You're Verified!",
-            color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp,
-            letterSpacing = (-0.5).sp
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            "Your identity has been verified.\nYou now have full access to all features.",
-            color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center, lineHeight = 19.sp
-        )
     }
 }
 
-@Composable
-private fun RejectedView(note: String?, onRetry: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            Modifier.size(96.dp).clip(RoundedCornerShape(28.dp))
-                .background(NexaRed.copy(alpha = 0.12f))
-                .border(1.dp, NexaRed.copy(alpha = 0.35f), RoundedCornerShape(28.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Filled.Error,
-                contentDescription = null,
-                tint = NexaRed,
-                modifier = Modifier.size(44.dp)
-            )
-        }
-        Spacer(Modifier.height(24.dp))
-        Text(
-            "Verification Failed",
-            color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            note ?: "Your documents could not be verified. Please try again with clearer photos.",
-            color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center, lineHeight = 19.sp
-        )
-        Spacer(Modifier.height(28.dp))
-        GradientButton(text = "Try Again", onClick = onRetry)
-    }
-}
+private data class Quadruple<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
-@Composable
-private fun KVRow(k: String, v: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(k, color = NexaMuted, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
-        Text(v, color = NexaText, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
-    }
-}
+// Destructuring helper
+private operator fun <A, B, C, D> Quadruple<A, B, C, D>.component1() = a
+private operator fun <A, B, C, D> Quadruple<A, B, C, D>.component2() = b
+private operator fun <A, B, C, D> Quadruple<A, B, C, D>.component3() = c
+private operator fun <A, B, C, D> Quadruple<A, B, C, D>.component4() = d
