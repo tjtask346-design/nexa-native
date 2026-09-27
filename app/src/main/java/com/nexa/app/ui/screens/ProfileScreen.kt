@@ -39,6 +39,7 @@ import com.nexa.app.data.Prefs
 import com.nexa.app.nav.Routes
 import com.nexa.app.ui.components.NexaBottomBar
 import com.nexa.app.ui.components.NexaFabSheet
+import com.nexa.app.ui.components.NexaSwitch
 import com.nexa.app.ui.components.TransactionPinModal
 import com.nexa.app.ui.theme.*
 
@@ -50,14 +51,12 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
     var showFabSheet by remember { mutableStateOf(false) }
     var biometricOn by remember { mutableStateOf(prefs.biometricEnabled) }
 
-    // Enrollment flow states
+    // Enable flow: PIN → biometric
     var showPinVerifyForEnable by remember { mutableStateOf(false) }
-    var showDisableVerify by remember { mutableStateOf(false) }
 
-    // Check hardware
     val hardwareAvailable = remember { BiometricHelper.isAvailable(ctx) }
 
-    // Enable flow: PIN verified → then biometric prompt
+    // Enable flow: verify PIN → then biometric
     TransactionPinModal(
         visible = showPinVerifyForEnable,
         title = "Verify to enable fingerprint",
@@ -68,7 +67,6 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
         onDismiss = { showPinVerifyForEnable = false },
         onConfirmed = {
             showPinVerifyForEnable = false
-            // Now launch fingerprint to confirm setup
             if (activity != null) {
                 BiometricHelper.prompt(
                     activity = activity,
@@ -80,35 +78,12 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                         Toast.makeText(ctx, "Fingerprint enabled ✓", Toast.LENGTH_SHORT).show()
                     },
                     onError = { msg ->
-                        Toast.makeText(ctx, "Setup cancelled: $msg", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, "Setup cancelled", Toast.LENGTH_SHORT).show()
                     }
                 )
-            } else {
-                Toast.makeText(ctx, "Biometric unavailable", Toast.LENGTH_SHORT).show()
             }
         }
     )
-
-    // Disable flow: biometric prompt only
-    if (showDisableVerify && activity != null) {
-        LaunchedEffect(showDisableVerify) {
-            BiometricHelper.prompt(
-                activity = activity,
-                title = "Verify to disable",
-                subtitle = "Place your finger",
-                onSuccess = {
-                    prefs.biometricEnabled = false
-                    biometricOn = false
-                    showDisableVerify = false
-                    Toast.makeText(ctx, "Fingerprint disabled", Toast.LENGTH_SHORT).show()
-                },
-                onError = { msg ->
-                    showDisableVerify = false
-                    Toast.makeText(ctx, "Cancelled: $msg", Toast.LENGTH_SHORT).show()
-                }
-            )
-        }
-    }
 
     Column(Modifier.fillMaxSize().background(NexaBg)) {
         Column(
@@ -152,31 +127,50 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                 ProfileRow(Icons.Filled.QrCode, NexaGreen, "My QR Code", "Receive instant Nexa payments") {
                     nav.navigate(Routes.MYQR)
                 }
-                ProfileRow(
-                    Icons.Filled.Fingerprint,
-                    if (biometricOn) NexaGreen else NexaTeal,
-                    "Fingerprint",
-                    when {
+
+                // Fingerprint row with switch
+                FingerprintRow(
+                    icon = Icons.Filled.Fingerprint,
+                    tint = if (biometricOn) NexaGreen else NexaTeal,
+                    title = "Fingerprint",
+                    subtitle = when {
                         !hardwareAvailable -> "Not available on this device"
-                        biometricOn -> "Enabled — tap to disable"
-                        else -> "Disabled — tap to enable"
+                        biometricOn -> "Enabled for quick login"
+                        else -> "Tap to enable quick login"
                     },
-                    enabled = hardwareAvailable
-                ) {
-                    if (!hardwareAvailable) {
-                        Toast.makeText(ctx, "This device has no fingerprint sensor", Toast.LENGTH_SHORT).show()
-                        return@ProfileRow
-                    }
-                    if (biometricOn) {
-                        showDisableVerify = true
-                    } else {
-                        if (prefs.pin == null) {
-                            Toast.makeText(ctx, "Set your PIN first", Toast.LENGTH_SHORT).show()
+                    checked = biometricOn,
+                    enabled = hardwareAvailable,
+                    onToggle = { wantOn ->
+                        if (!hardwareAvailable) {
+                            Toast.makeText(ctx, "No fingerprint sensor available", Toast.LENGTH_SHORT).show()
+                            return@FingerprintRow
+                        }
+                        if (wantOn) {
+                            if (prefs.pin == null) {
+                                Toast.makeText(ctx, "Set your PIN first", Toast.LENGTH_SHORT).show()
+                            } else {
+                                showPinVerifyForEnable = true
+                            }
                         } else {
-                            showPinVerifyForEnable = true
+                            if (activity != null) {
+                                BiometricHelper.prompt(
+                                    activity = activity,
+                                    title = "Verify to disable",
+                                    subtitle = "Place your finger",
+                                    onSuccess = {
+                                        prefs.biometricEnabled = false
+                                        biometricOn = false
+                                        Toast.makeText(ctx, "Fingerprint disabled", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = {
+                                        Toast.makeText(ctx, "Cancelled", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
                         }
                     }
-                }
+                )
+
                 ProfileRow(Icons.Filled.VerifiedUser, NexaGreen, "KYC Verification", "Complete your verification") {
                     nav.navigate(Routes.KYC)
                 }
@@ -253,6 +247,46 @@ private fun ProfileRow(
             contentDescription = null,
             tint = NexaDim,
             modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
+private fun FingerprintRow(
+    icon: ImageVector,
+    tint: Color,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    val effectiveTint = if (enabled) tint else NexaDim
+    Row(
+        Modifier.fillMaxWidth().padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(13.dp)
+    ) {
+        Box(
+            Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
+                .background(effectiveTint.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = title, tint = effectiveTint, modifier = Modifier.size(18.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                title,
+                color = if (enabled) NexaText else NexaMuted,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.5.sp
+            )
+            Text(subtitle, color = NexaDim, fontSize = 11.sp)
+        }
+        NexaSwitch(
+            checked = checked,
+            onCheckedChange = onToggle,
+            enabled = enabled
         )
     }
 }

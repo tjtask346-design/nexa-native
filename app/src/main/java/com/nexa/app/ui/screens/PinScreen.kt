@@ -4,11 +4,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +50,9 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var fpActive by remember { mutableStateOf(false) }
     var fpLaunchAttempted by remember { mutableStateOf(false) }
 
+    // Signup biometric enrollment dialog
+    var showBioEnrollDialog by remember { mutableStateOf(false) }
+
     val hardwareAvailable = remember { BiometricHelper.isAvailable(ctx) }
     val showFingerprint = mode == "login" &&
         prefs.pin != null &&
@@ -54,11 +60,8 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         prefs.biometricEnabled &&
         activity != null
 
-    fun onSignupFailure(msg: String) {
-        error = msg
-        shakeTrigger++
-        buffer = ""
-        busy = false
+    fun goToVerifyEmail() {
+        nav.navigate(Routes.VERIFY_EMAIL) { popUpTo(Routes.PIN) { inclusive = true } }
     }
 
     fun submitSignup(pin: String) {
@@ -68,12 +71,20 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             val email = AuthState.pendingEmail ?: prefs.email ?: ""
             val res = repo.createFirebaseUser(email)
             if (res.isFailure) {
-                onSignupFailure(res.exceptionOrNull()?.message ?: "Firebase error")
+                error = res.exceptionOrNull()?.message ?: "Firebase error"
+                shakeTrigger++
+                buffer = ""
+                busy = false
                 return@launch
             }
             repo.savePin(pin)
             busy = false
-            nav.navigate(Routes.VERIFY_EMAIL) { popUpTo(Routes.PIN) { inclusive = true } }
+            // After successful signup, ask to enroll biometric (only if hardware available)
+            if (hardwareAvailable && activity != null) {
+                showBioEnrollDialog = true
+            } else {
+                goToVerifyEmail()
+            }
         }
     }
 
@@ -211,6 +222,59 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             fingerprintEnabled = showFingerprint,
             fingerprintActive = fpActive,
             modifier = Modifier.padding(bottom = 28.dp)
+        )
+    }
+
+    // Biometric enrollment dialog — shown after successful signup
+    if (showBioEnrollDialog) {
+        AlertDialog(
+            onDismissRequest = { },
+            containerColor = NexaSurface,
+            titleContentColor = NexaText,
+            textContentColor = NexaMuted,
+            title = {
+                Text("Enable Fingerprint?", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+            },
+            text = {
+                Text(
+                    "Set up fingerprint for faster login next time. You can always change this in Profile settings.",
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showBioEnrollDialog = false
+                    if (activity != null) {
+                        BiometricHelper.prompt(
+                            activity = activity,
+                            title = "Enable Fingerprint",
+                            subtitle = "Verify to set up",
+                            onSuccess = {
+                                prefs.biometricEnabled = true
+                                android.widget.Toast.makeText(ctx, "Fingerprint enabled ✓", android.widget.Toast.LENGTH_SHORT).show()
+                                goToVerifyEmail()
+                            },
+                            onError = {
+                                // User cancelled — continue without biometric
+                                goToVerifyEmail()
+                            }
+                        )
+                    } else {
+                        goToVerifyEmail()
+                    }
+                }) {
+                    Text("Enable", color = NexaGreen, fontWeight = FontWeight.ExtraBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showBioEnrollDialog = false
+                    goToVerifyEmail()
+                }) {
+                    Text("Not Now", color = NexaMuted, fontWeight = FontWeight.SemiBold)
+                }
+            }
         )
     }
 }
