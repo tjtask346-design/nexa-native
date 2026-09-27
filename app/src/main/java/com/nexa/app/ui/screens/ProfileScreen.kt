@@ -183,7 +183,7 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                     "Nexa v1.0.0",
                     color = NexaDim, fontSize = 11.sp,
                     modifier = Modifier.fillMaxWidth().padding(top = 30.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.center
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
 
