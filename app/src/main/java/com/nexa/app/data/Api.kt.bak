@@ -103,43 +103,6 @@ data class SendMoneyRequest(
     val pin: String
 )
 
-/* ═══════════════════════════════════════
-   KYC models (added)
-   ═══════════════════════════════════════ */
-
-data class KycSubmission(
-    @SerializedName(value = "_id", alternate = ["id"])
-    val id: String? = null,
-    val user: User? = null,
-    val nidNumber: String = "",
-    val frontUrl: String = "",
-    val backUrl: String = "",
-    val selfieUrl: String = "",
-    val status: String = "pending",
-    val adminNote: String? = null,
-    val createdAt: String? = null
-)
-
-data class KycListResponse(
-    val success: Boolean = false,
-    val kycs: List<KycSubmission> = emptyList(),
-    val count: Int = 0,
-    val kyc: KycSubmission? = null,
-    val message: String? = null
-)
-
-data class KycSubmitRequest(
-    val nidNumber: String,
-    val frontUrl: String,
-    val backUrl: String,
-    val selfieUrl: String
-)
-
-data class SimpleResponse(
-    val success: Boolean = false,
-    val message: String? = null
-)
-
 interface NexaApi {
     @POST("/api/auth/register-firebase")
     suspend fun register(@Body body: RegisterRequest): AuthResponse
