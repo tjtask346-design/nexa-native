@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Nexa" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#040A07</item>
-        <item name="android:statusBarColor">#040A07</item>
-        <item name="android:navigationBarColor">#040A07</item>
+    <style name="Theme.Nexa" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/nexa_bg</item>
+        <item name="android:statusBarColor">@color/nexa_bg</item>
+        <item name="android:navigationBarColor">@color/nexa_bg</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowSplashScreenBackground">#040A07</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
-        <item name="android:windowSplashScreenIconBackgroundColor">#040A07</item>
+        <item name="android:windowSplashScreenBackground">@color/nexa_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/nexa_bg</item>
+        <item name="android:windowSplashScreenAnimationDuration">200</item>
     </style>
 </resources>
