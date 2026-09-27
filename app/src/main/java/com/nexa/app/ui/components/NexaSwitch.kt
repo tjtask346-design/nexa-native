@@ -1,6 +1,6 @@
 package com.nexa.app.ui.components
 
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,10 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.nexa.app.ui.theme.*
 
-/**
- * iOS-style toggle switch.
- * Green when on, gray when off, thumb slides left/right with spring animation.
- */
 @Composable
 fun NexaSwitch(
     checked: Boolean,
@@ -34,17 +30,12 @@ fun NexaSwitch(
     val trackWidth = 52.dp
     val trackHeight = 30.dp
     val thumbSize = 24.dp
-    val padding = 3.dp
+    val edgePadding = 3.dp
 
-    val maxOffset = trackWidth - thumbSize - padding * 2
-
-    val thumbOffset by animateDpAsState(
-        targetValue = if (checked) maxOffset else 0.dp,
-        animationSpec = spring(
-            dampingRatio = 0.75f,
-            stiffness = 500f
-        ),
-        label = "switchThumb"
+    val fraction by animateFloatAsState(
+        targetValue = if (checked) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.75f, stiffness = 500f),
+        label = "switchFraction"
     )
 
     val trackColor = when {
@@ -53,40 +44,35 @@ fun NexaSwitch(
         else -> NexaSurface3
     }
 
+    val borderColor = when {
+        !enabled -> NexaBorder.copy(alpha = 0.1f)
+        checked -> NexaGreen
+        else -> NexaBorder.copy(alpha = 0.3f)
+    }
+
     Box(
         modifier = modifier
             .width(trackWidth)
             .height(trackHeight)
             .clip(RoundedCornerShape(trackHeight / 2))
             .background(trackColor)
-            .border(
-                width = 1.dp,
-                color = when {
-                    !enabled -> NexaBorder.copy(alpha = 0.1f)
-                    checked -> NexaGreen
-                    else -> NexaBorder.copy(alpha = 0.25f)
-                },
-                shape = RoundedCornerShape(trackHeight / 2)
-            )
+            .border(1.dp, borderColor, RoundedCornerShape(trackHeight / 2))
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
                 onCheckedChange(!checked)
-            }
-            .padding(padding),
+            },
         contentAlignment = Alignment.CenterStart
     ) {
+        val offsetX = (trackWidth - thumbSize - edgePadding * 2) * fraction
         Box(
             Modifier
-                .offset(x = thumbOffset)
+                .padding(start = edgePadding)
+                .offset(x = offsetX)
                 .size(thumbSize)
-                .shadow(
-                    elevation = 2.dp,
-                    shape = CircleShape,
-                    clip = false
-                )
+                .shadow(2.dp, CircleShape, clip = false)
                 .clip(CircleShape)
                 .background(Color.White)
         )

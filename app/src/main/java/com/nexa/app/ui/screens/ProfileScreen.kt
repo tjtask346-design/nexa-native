@@ -51,155 +51,177 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
     var showFabSheet by remember { mutableStateOf(false) }
     var biometricOn by remember { mutableStateOf(prefs.biometricEnabled) }
 
-    // Enable flow: PIN → biometric
-    var showPinVerifyForEnable by remember { mutableStateOf(false) }
+    // Fallback PIN verification (if biometric prompt fails)
+    var pinVerifyMode by remember { mutableStateOf<String?>(null) } // "enable" | "disable" | null
 
     val hardwareAvailable = remember { BiometricHelper.isAvailable(ctx) }
 
-    // Enable flow: verify PIN → then biometric
-    TransactionPinModal(
-        visible = showPinVerifyForEnable,
-        title = "Verify to enable fingerprint",
-        subtitle = "Enter your PIN first",
-        amount = "",
-        prefs = prefs,
-        expectedPin = prefs.pin,
-        onDismiss = { showPinVerifyForEnable = false },
-        onConfirmed = {
-            showPinVerifyForEnable = false
-            if (activity != null) {
-                BiometricHelper.prompt(
-                    activity = activity,
-                    title = "Confirm fingerprint",
-                    subtitle = "Verify to complete setup",
-                    onSuccess = {
-                        prefs.biometricEnabled = true
-                        biometricOn = true
-                        Toast.makeText(ctx, "Fingerprint enabled ✓", Toast.LENGTH_SHORT).show()
-                    },
-                    onError = { msg ->
-                        Toast.makeText(ctx, "Setup cancelled", Toast.LENGTH_SHORT).show()
-                    }
+    // Box wrapper so modal renders on TOP
+    Box(Modifier.fillMaxSize()) {
+
+        Column(Modifier.fillMaxSize().background(NexaBg)) {
+            Column(
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 20.dp)
+            ) {
+                Text(
+                    "Profile",
+                    color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp,
+                    modifier = Modifier.padding(start = 20.dp, top = 30.dp, bottom = 16.dp)
                 )
-            }
-        }
-    )
 
-    Column(Modifier.fillMaxSize().background(NexaBg)) {
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 20.dp)
-        ) {
-            Text(
-                "Profile",
-                color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp,
-                modifier = Modifier.padding(start = 20.dp, top = 30.dp, bottom = 16.dp)
-            )
-
-            // Avatar + name
-            Column(
-                Modifier.fillMaxWidth().padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    Modifier.size(86.dp).clip(RoundedCornerShape(28.dp))
-                        .background(Brush.linearGradient(listOf(NexaGreen, NexaTeal)))
+                Column(
+                    Modifier.fillMaxWidth().padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Image(painterResource(R.drawable.nexa_logo), contentDescription = null, modifier = Modifier.fillMaxSize())
+                    Box(
+                        Modifier.size(86.dp).clip(RoundedCornerShape(28.dp))
+                            .background(Brush.linearGradient(listOf(NexaGreen, NexaTeal)))
+                    ) {
+                        Image(painterResource(R.drawable.nexa_logo), contentDescription = null, modifier = Modifier.fillMaxSize())
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Text(prefs.name ?: "User", color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                    Text(prefs.email ?: "", color = NexaMuted, fontSize = 12.5.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(9.dp))
+                            .background(NexaTeal.copy(alpha = 0.11f))
+                            .border(1.dp, NexaTeal.copy(alpha = 0.28f), RoundedCornerShape(9.dp))
+                            .padding(horizontal = 11.dp, vertical = 5.dp)
+                    ) {
+                        Text("● ACTIVE", color = NexaTeal, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                    }
                 }
-                Spacer(Modifier.height(14.dp))
-                Text(prefs.name ?: "User", color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
-                Text(prefs.email ?: "", color = NexaMuted, fontSize = 12.5.sp)
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    Modifier.clip(RoundedCornerShape(9.dp))
-                        .background(NexaTeal.copy(alpha = 0.11f))
-                        .border(1.dp, NexaTeal.copy(alpha = 0.28f), RoundedCornerShape(9.dp))
-                        .padding(horizontal = 11.dp, vertical = 5.dp)
+
+                Column(
+                    Modifier.padding(horizontal = 20.dp).clip(RoundedCornerShape(20.dp)).background(NexaSurface)
                 ) {
-                    Text("● ACTIVE", color = NexaTeal, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
-                }
-            }
+                    ProfileRow(Icons.Filled.QrCode, NexaGreen, "My QR Code", "Receive instant Nexa payments") {
+                        nav.navigate(Routes.MYQR)
+                    }
 
-            // Menu
-            Column(
-                Modifier.padding(horizontal = 20.dp).clip(RoundedCornerShape(20.dp)).background(NexaSurface)
-            ) {
-                ProfileRow(Icons.Filled.QrCode, NexaGreen, "My QR Code", "Receive instant Nexa payments") {
-                    nav.navigate(Routes.MYQR)
-                }
+                    FingerprintRow(
+                        icon = Icons.Filled.Fingerprint,
+                        tint = if (biometricOn) NexaGreen else NexaTeal,
+                        title = "Fingerprint",
+                        subtitle = when {
+                            !hardwareAvailable -> "Not available on this device"
+                            biometricOn -> "Enabled for quick login"
+                            else -> "Tap to enable quick login"
+                        },
+                        checked = biometricOn,
+                        enabled = hardwareAvailable,
+                        onToggle = { wantOn ->
+                            if (!hardwareAvailable) {
+                                Toast.makeText(ctx, "No fingerprint enrolled on this device", Toast.LENGTH_SHORT).show()
+                                return@FingerprintRow
+                            }
 
-                // Fingerprint row with switch
-                FingerprintRow(
-                    icon = Icons.Filled.Fingerprint,
-                    tint = if (biometricOn) NexaGreen else NexaTeal,
-                    title = "Fingerprint",
-                    subtitle = when {
-                        !hardwareAvailable -> "Not available on this device"
-                        biometricOn -> "Enabled for quick login"
-                        else -> "Tap to enable quick login"
-                    },
-                    checked = biometricOn,
-                    enabled = hardwareAvailable,
-                    onToggle = { wantOn ->
-                        if (!hardwareAvailable) {
-                            Toast.makeText(ctx, "No fingerprint sensor available", Toast.LENGTH_SHORT).show()
-                            return@FingerprintRow
-                        }
-                        if (wantOn) {
-                            if (prefs.pin == null) {
-                                Toast.makeText(ctx, "Set your PIN first", Toast.LENGTH_SHORT).show()
+                            if (wantOn) {
+                                // Enable flow: try biometric prompt first
+                                if (activity != null) {
+                                    BiometricHelper.prompt(
+                                        activity = activity,
+                                        title = "Enable fingerprint login",
+                                        subtitle = "Place your finger to confirm",
+                                        onSuccess = {
+                                            prefs.biometricEnabled = true
+                                            biometricOn = true
+                                            Toast.makeText(ctx, "Fingerprint enabled ✓", Toast.LENGTH_SHORT).show()
+                                        },
+                                        onError = { msg ->
+                                            // If biometric fails (e.g. no fingerprint enrolled), fall back to PIN
+                                            if (msg.contains("No biometric", true) ||
+                                                msg.contains("not available", true) ||
+                                                msg.contains("no fingerprint", true) ||
+                                                msg.contains("No fingerprint", true)) {
+                                                pinVerifyMode = "enable"
+                                            } else {
+                                                // User cancelled - just do nothing
+                                                // Toast.makeText(ctx, "Cancelled", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    )
+                                } else {
+                                    pinVerifyMode = "enable"
+                                }
                             } else {
-                                showPinVerifyForEnable = true
-                            }
-                        } else {
-                            if (activity != null) {
-                                BiometricHelper.prompt(
-                                    activity = activity,
-                                    title = "Verify to disable",
-                                    subtitle = "Place your finger",
-                                    onSuccess = {
-                                        prefs.biometricEnabled = false
-                                        biometricOn = false
-                                        Toast.makeText(ctx, "Fingerprint disabled", Toast.LENGTH_SHORT).show()
-                                    },
-                                    onError = {
-                                        Toast.makeText(ctx, "Cancelled", Toast.LENGTH_SHORT).show()
-                                    }
-                                )
+                                // Disable flow: also verify with biometric
+                                if (activity != null) {
+                                    BiometricHelper.prompt(
+                                        activity = activity,
+                                        title = "Disable fingerprint",
+                                        subtitle = "Place your finger to confirm",
+                                        onSuccess = {
+                                            prefs.biometricEnabled = false
+                                            biometricOn = false
+                                            Toast.makeText(ctx, "Fingerprint disabled", Toast.LENGTH_SHORT).show()
+                                        },
+                                        onError = {
+                                            // User cancelled - keep enabled
+                                        }
+                                    )
+                                } else {
+                                    prefs.biometricEnabled = false
+                                    biometricOn = false
+                                }
                             }
                         }
-                    }
-                )
+                    )
 
-                ProfileRow(Icons.Filled.VerifiedUser, NexaGreen, "KYC Verification", "Complete your verification") {
-                    nav.navigate(Routes.KYC)
+                    ProfileRow(Icons.Filled.VerifiedUser, NexaGreen, "KYC Verification", "Complete your verification") {
+                        nav.navigate(Routes.KYC)
+                    }
+                    ProfileRow(Icons.Filled.SupportAgent, NexaTeal, "Support", "24/7 live chat") { }
+                    ProfileRow(Icons.AutoMirrored.Filled.Logout, NexaRed, "Log Out", "Sign out of your account") {
+                        prefs.clear()
+                        nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
+                    }
                 }
-                ProfileRow(Icons.Filled.SupportAgent, NexaTeal, "Support", "24/7 live chat") { }
-                ProfileRow(Icons.AutoMirrored.Filled.Logout, NexaRed, "Log Out", "Sign out of your account") {
-                    prefs.clear()
-                    nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
-                }
+
+                Text(
+                    "Nexa v1.0.0",
+                    color = NexaDim, fontSize = 11.sp,
+                    modifier = Modifier.fillMaxWidth().padding(top = 30.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.center
+                )
             }
 
-            Text(
-                "Nexa v1.0.0",
-                color = NexaDim, fontSize = 11.sp,
-                modifier = Modifier.fillMaxWidth().padding(top = 30.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            NexaBottomBar(
+                currentRoute = Routes.PROFILE,
+                onNavigate = { nav.navigate(it) },
+                onFabClick = { showFabSheet = true }
             )
         }
 
-        NexaBottomBar(
-            currentRoute = Routes.PROFILE,
-            onNavigate = { nav.navigate(it) },
-            onFabClick = { showFabSheet = true }
-        )
-    }
+        // FAB sheet — on top of content
+        if (showFabSheet) {
+            NexaFabSheet(
+                onDismiss = { showFabSheet = false },
+                onNavigate = { nav.navigate(it) }
+            )
+        }
 
-    if (showFabSheet) {
-        NexaFabSheet(
-            onDismiss = { showFabSheet = false },
-            onNavigate = { nav.navigate(it) }
+        // PIN fallback modal — LAST so it renders on TOP
+        TransactionPinModal(
+            visible = pinVerifyMode != null,
+            title = if (pinVerifyMode == "enable") "Enable fingerprint" else "Disable fingerprint",
+            subtitle = "Enter your PIN to confirm",
+            amount = "",
+            prefs = prefs,
+            expectedPin = prefs.pin,
+            onDismiss = { pinVerifyMode = null },
+            onConfirmed = {
+                val wasEnable = pinVerifyMode == "enable"
+                pinVerifyMode = null
+                prefs.biometricEnabled = wasEnable
+                biometricOn = wasEnable
+                Toast.makeText(
+                    ctx,
+                    if (wasEnable) "Fingerprint enabled ✓" else "Fingerprint disabled",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
         )
     }
 }
