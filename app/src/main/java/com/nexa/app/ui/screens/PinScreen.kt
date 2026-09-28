@@ -11,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -49,14 +48,12 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var shakeTrigger by remember { mutableIntStateOf(0) }
     var fpActive by remember { mutableStateOf(false) }
     var fpLaunchAttempted by remember { mutableStateOf(false) }
-
-    // Signup biometric enrollment dialog
     var showBioEnrollDialog by remember { mutableStateOf(false) }
 
-    val hardwareAvailable = remember { BiometricHelper.isAvailable(ctx) }
+    val enrolled = remember { BiometricHelper.hasEnrolledBiometric(ctx) }
     val showFingerprint = mode == "login" &&
         prefs.pin != null &&
-        hardwareAvailable &&
+        enrolled &&
         prefs.biometricEnabled &&
         activity != null
 
@@ -79,11 +76,40 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             }
             repo.savePin(pin)
             busy = false
-            // After successful signup, ask to enroll biometric (only if hardware available)
-            if (hardwareAvailable && activity != null) {
+            if (enrolled && activity != null) {
                 showBioEnrollDialog = true
             } else {
                 goToVerifyEmail()
+            }
+        }
+    }
+
+    fun handleLoginResponse(res: com.nexa.app.data.AuthResponse) {
+        when {
+            // TOTP enabled → need code
+            res.requiresTotp -> {
+                prefs.pin = buffer  // save pin temporarily for verify-totp call
+                AuthState.pendingEmail = AuthState.pendingEmail ?: prefs.email
+                nav.navigate(Routes.VERIFY_TOTP) { popUpTo(Routes.PIN) { inclusive = true } }
+            }
+            // TOTP not set up yet → setup
+            res.requiresTotpSetup && res.token != null -> {
+                AuthState.pendingToken = res.token
+                repo.saveSession(res.token, res.user)
+                repo.savePin(buffer)
+                nav.navigate(Routes.SETUP_TOTP) { popUpTo(Routes.PIN) { inclusive = true } }
+            }
+            // Full success
+            res.success && res.token != null -> {
+                repo.saveSession(res.token, res.user)
+                repo.savePin(buffer)
+                AuthState.reset()
+                nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
+            }
+            else -> {
+                error = res.message ?: "Login failed"
+                shakeTrigger++
+                buffer = ""
             }
         }
     }
@@ -94,22 +120,12 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             error = null
             val email = AuthState.pendingEmail ?: prefs.email ?: ""
             val res = repo.loginPin(email, pin)
-            res.onSuccess { r ->
-                if (r.success && r.token != null) {
-                    repo.saveSession(r.token, r.user)
-                    repo.savePin(pin)
-                    AuthState.reset()
-                    nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
-                } else {
-                    error = r.message ?: "Login failed"
+            res.onSuccess { r -> handleLoginResponse(r) }
+                .onFailure {
+                    error = it.message ?: "Network error"
                     shakeTrigger++
                     buffer = ""
                 }
-            }.onFailure {
-                error = it.message ?: "Network error"
-                shakeTrigger++
-                buffer = ""
-            }
             busy = false
         }
     }
@@ -121,15 +137,10 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         if (buffer.length == 5) {
             val pin = buffer
             when (mode) {
-                "setup" -> {
-                    firstPin = pin
-                    mode = "confirm"
-                    buffer = ""
-                }
+                "setup" -> { firstPin = pin; mode = "confirm"; buffer = "" }
                 "confirm" -> {
-                    if (pin == firstPin) {
-                        submitSignup(pin)
-                    } else {
+                    if (pin == firstPin) submitSignup(pin)
+                    else {
                         error = "PINs do not match"
                         shakeTrigger++
                         buffer = ""
@@ -170,9 +181,12 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             if (mode == "confirm") {
                 mode = "setup"; firstPin = ""; buffer = ""
             } else {
-                nav.popBackStack()
+                AuthState.reset()
+                nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
             }
-        }) { Text("←", color = NexaText, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        }) {
+            Text("←", color = NexaText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        }
 
         Spacer(Modifier.height(30.dp))
 
@@ -182,13 +196,21 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             }
             Spacer(Modifier.height(20.dp))
             Text(
-                when (mode) { "setup" -> "Create your PIN"; "confirm" -> "Confirm your PIN"; else -> "Enter your PIN" },
+                when (mode) {
+                    "setup" -> "Create your PIN"
+                    "confirm" -> "Confirm your PIN"
+                    else -> "Enter your PIN"
+                },
                 color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp,
                 letterSpacing = (-0.5).sp, modifier = Modifier.fadeUp(100)
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                when (mode) { "setup" -> "Choose a 5-digit PIN"; "confirm" -> "Enter the same PIN again"; else -> "Enter your 5-digit PIN to unlock" },
+                when (mode) {
+                    "setup" -> "Choose a 5-digit PIN"
+                    "confirm" -> "Enter the same PIN again"
+                    else -> "Enter your 5-digit PIN to unlock"
+                },
                 color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center, modifier = Modifier.fadeUp(150)
             )
@@ -225,21 +247,17 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         )
     }
 
-    // Biometric enrollment dialog — shown after successful signup
     if (showBioEnrollDialog) {
         AlertDialog(
             onDismissRequest = { },
             containerColor = NexaSurface,
             titleContentColor = NexaText,
             textContentColor = NexaMuted,
-            title = {
-                Text("Enable Fingerprint?", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
-            },
+            title = { Text("Enable Fingerprint?", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp) },
             text = {
                 Text(
-                    "Set up fingerprint for faster login next time. You can always change this in Profile settings.",
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp
+                    "Set up fingerprint for faster login. You can change this in Profile → Fingerprint.",
+                    fontSize = 13.sp, lineHeight = 19.sp
                 )
             },
             confirmButton = {
@@ -249,31 +267,24 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                         BiometricHelper.prompt(
                             activity = activity,
                             title = "Enable Fingerprint",
-                            subtitle = "Verify to set up",
+                            subtitle = "Place your finger to set up",
                             onSuccess = {
                                 prefs.biometricEnabled = true
                                 android.widget.Toast.makeText(ctx, "Fingerprint enabled ✓", android.widget.Toast.LENGTH_SHORT).show()
                                 goToVerifyEmail()
                             },
-                            onError = {
-                                // User cancelled — continue without biometric
-                                goToVerifyEmail()
-                            }
+                            onError = { goToVerifyEmail() }
                         )
                     } else {
                         goToVerifyEmail()
                     }
-                }) {
-                    Text("Enable", color = NexaGreen, fontWeight = FontWeight.ExtraBold)
-                }
+                }) { Text("Enable", color = NexaGreen, fontWeight = FontWeight.ExtraBold) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showBioEnrollDialog = false
                     goToVerifyEmail()
-                }) {
-                    Text("Not Now", color = NexaMuted, fontWeight = FontWeight.SemiBold)
-                }
+                }) { Text("Not Now", color = NexaMuted, fontWeight = FontWeight.SemiBold) }
             }
         )
     }

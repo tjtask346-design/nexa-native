@@ -39,6 +39,31 @@ class Repository(private val prefs: Prefs) {
             }
         }
 
+    /* ─── TOTP (2FA) ─── */
+    suspend fun setupTotp(token: String): Result<SetupTotpResponse> = withContext(Dispatchers.IO) {
+        wrap { api.setupTotp("Bearer $token") }
+    }
+
+    suspend fun verifyTotpSetup(token: String, code: String): Result<SimpleResponse> =
+        withContext(Dispatchers.IO) {
+            wrap { api.verifyTotpSetup("Bearer $token", VerifyTotpRequest(code)) }
+        }
+
+    suspend fun disableTotp(pin: String, code: String): Result<SimpleResponse> =
+        withContext(Dispatchers.IO) {
+            wrap { api.disableTotp(authHeader(), DisableTotpRequest(pin, code)) }
+        }
+
+    suspend fun resetPinWithTotp(email: String, code: String, newPin: String): Result<SimpleResponse> =
+        withContext(Dispatchers.IO) {
+            wrap { api.resetPinWithTotp(ResetPinRequest(email, code, newPin)) }
+        }
+
+    suspend fun loginTotp(email: String, pin: String, code: String): Result<AuthResponse> =
+        withContext(Dispatchers.IO) {
+            wrap { api.loginTotp(LoginPinRequestTotp(email, pin, code)) }
+        }
+
     suspend fun loginPin(email: String, pin: String): Result<AuthResponse> =
         withContext(Dispatchers.IO) {
             wrap { api.loginPin(LoginPinRequest(email, pin)) }

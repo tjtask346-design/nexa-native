@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Icon
@@ -171,6 +172,15 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
 
                     ProfileRow(Icons.Filled.VerifiedUser, NexaGreen, "KYC Verification", "Complete your verification") {
                         nav.navigate(Routes.KYC)
+                    }
+                    ProfileRow(
+                        Icons.Filled.Shield,
+                        NexaGreen,
+                        "Two-Factor Auth",
+                        "Enabled — Google Authenticator"
+                    ) {
+                        // TOTP is mandatory; no toggle. Info only.
+                        android.widget.Toast.makeText(ctx, "2FA is always on for security", android.widget.Toast.LENGTH_SHORT).show()
                     }
                     ProfileRow(Icons.Filled.SupportAgent, NexaTeal, "Support", "24/7 live chat") { }
                     ProfileRow(Icons.AutoMirrored.Filled.Logout, NexaRed, "Log Out", "Sign out of your account") {

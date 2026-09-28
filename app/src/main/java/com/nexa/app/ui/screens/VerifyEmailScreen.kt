@@ -47,9 +47,10 @@ fun VerifyEmailScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 checking = false
                 res.onSuccess { r ->
                     if (r.success && r.token != null) {
+                        // Save token as pendingToken → next step is TOTP setup
                         repo.saveSession(r.token, r.user)
-                        AuthState.reset()
-                        nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
+                        AuthState.pendingToken = r.token
+                        nav.navigate(Routes.SETUP_TOTP) { popUpTo(0) { inclusive = true } }
                     } else {
                         Toast.makeText(ctx, r.message ?: "Registration failed", Toast.LENGTH_LONG).show()
                     }

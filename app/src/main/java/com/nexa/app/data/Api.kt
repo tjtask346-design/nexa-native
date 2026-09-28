@@ -31,7 +31,8 @@ data class User(
     val role: String = "user",
     val balance: Double = 0.0,
     val uid: String? = null,
-    val kycStatus: String = "unverified"
+    val kycStatus: String = "unverified",
+    val totpEnabled: Boolean = false
 ) {
     val displayName: String
         get() = fullName.ifBlank { email.substringBefore("@") }
@@ -44,7 +45,9 @@ data class AuthResponse(
     val success: Boolean = false,
     val token: String? = null,
     val user: User? = null,
-    val message: String? = null
+    val message: String? = null,
+    val requiresTotp: Boolean = false,
+    val requiresTotpSetup: Boolean = false
 )
 
 data class MeResponse(
@@ -140,12 +143,66 @@ data class SimpleResponse(
     val message: String? = null
 )
 
+
+/* ═══════════════════════════════════════
+   TOTP models
+   ═══════════════════════════════════════ */
+
+data class SetupTotpResponse(
+    val success: Boolean = false,
+    val secret: String? = null,
+    val otpauth: String? = null,
+    val message: String? = null
+)
+
+data class VerifyTotpRequest(
+    val code: String
+)
+
+data class LoginPinRequestTotp(
+    val email: String,
+    val pin: String,
+    val code: String
+)
+
+data class DisableTotpRequest(
+    val pin: String,
+    val code: String
+)
+
+data class ResetPinRequest(
+    val email: String,
+    val code: String,
+    val newPin: String
+)
+
 interface NexaApi {
     @POST("/api/auth/register-firebase")
     suspend fun register(@Body body: RegisterRequest): AuthResponse
 
     @POST("/api/auth/login-pin")
     suspend fun loginPin(@Body body: LoginPinRequest): AuthResponse
+
+    @POST("/api/auth/setup-totp")
+    suspend fun setupTotp(@Header("Authorization") token: String): SetupTotpResponse
+
+    @POST("/api/auth/verify-totp-setup")
+    suspend fun verifyTotpSetup(
+        @Header("Authorization") token: String,
+        @Body body: VerifyTotpRequest
+    ): SimpleResponse
+
+    @POST("/api/auth/disable-totp")
+    suspend fun disableTotp(
+        @Header("Authorization") token: String,
+        @Body body: DisableTotpRequest
+    ): SimpleResponse
+
+    @POST("/api/auth/reset-pin-with-totp")
+    suspend fun resetPinWithTotp(@Body body: ResetPinRequest): SimpleResponse
+
+    @POST("/api/auth/login-totp")
+    suspend fun loginTotp(@Body body: LoginPinRequestTotp): AuthResponse
 
     @GET("/api/auth/me")
     suspend fun me(@Header("Authorization") token: String): MeResponse
