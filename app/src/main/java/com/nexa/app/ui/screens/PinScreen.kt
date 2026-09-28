@@ -39,6 +39,7 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val activity = ctx as? FragmentActivity
+
     var mode by remember { mutableStateOf(AuthState.pinMode.ifEmpty { "login" }) }
     var firstPin by remember { mutableStateOf("") }
     var buf by remember { mutableStateOf("") }
@@ -48,6 +49,7 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var fpActive by remember { mutableStateOf(false) }
     var fpTried by remember { mutableStateOf(false) }
     var showBioDialog by remember { mutableStateOf(false) }
+
     val enrolled = remember { BiometricHelper.hasEnrolledBiometric(ctx) }
     val showFp = mode == "login" && prefs.pin != null && enrolled && prefs.biometricEnabled && activity != null
 
@@ -58,7 +60,10 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             busy = true; error = null
             val email = AuthState.pendingEmail ?: prefs.email ?: ""
             val res = repo.createFirebaseUser(email)
-            if (res.isFailure) { error = res.exceptionOrNull()?.message ?: "Firebase error"; shake++; buf = ""; busy = false; return@launch }
+            if (res.isFailure) {
+                error = res.exceptionOrNull()?.message ?: "Firebase error"
+                shake++; buf = ""; busy = false; return@launch
+            }
             repo.savePin(pin); busy = false
             if (enrolled && activity != null) showBioDialog = true else goVerifyEmail()
         }
@@ -87,7 +92,25 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
     fun submitLogin(pin: String) {
         scope.launch {
-            busy = true; error = null
+            busy = true
+            error = null
+
+            // ═══════════════════════════════════════
+            // SMART SESSION RESTORE
+            // If a valid token exists locally AND PIN matches,
+            // unlock directly without backend call or TOTP.
+            // (Only explicit LOGOUT should require TOTP again.)
+            // ═══════════════════════════════════════
+            val hasToken = !prefs.token.isNullOrBlank()
+            val savedPin = prefs.pin
+            if (hasToken && savedPin != null && pin == savedPin) {
+                busy = false
+                AuthState.reset()
+                nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
+                return@launch
+            }
+
+            // Otherwise → full backend login (TOTP required if enabled)
             val email = AuthState.pendingEmail ?: prefs.email ?: ""
             repo.loginPin(email, pin).onSuccess { handleLogin(it) }
                 .onFailure { error = it.message ?: "Network error"; shake++; buf = "" }
@@ -113,9 +136,11 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     fun launchFp() {
         if (!showFp || activity == null) return
         fpActive = true
-        BiometricHelper.promptForPin(activity, prefs, "Unlock Nexa", "Place your finger",
+        BiometricHelper.promptForPin(
+            activity, prefs, "Unlock Nexa", "Place your finger",
             onPin = { p -> fpActive = false; submitLogin(p) },
-            onError = { fpActive = false })
+            onError = { fpActive = false }
+        )
     }
 
     LaunchedEffect(mode, showFp) {
@@ -129,45 +154,84 @@ fun PinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             if (mode == "confirm") { mode = "setup"; firstPin = ""; buf = "" }
             else { AuthState.reset(); nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } } }
         }) { Text("←", color = NexaText, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+
         Spacer(Modifier.height(30.dp))
+
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.size(64.dp).clip(RoundedCornerShape(20.dp)).fadeUp(0)) {
                 Image(painterResource(R.drawable.nexa_logo), null, modifier = Modifier.fillMaxSize())
             }
             Spacer(Modifier.height(20.dp))
-            Text(when (mode) { "setup" -> "Create your PIN"; "confirm" -> "Confirm your PIN"; else -> "Enter your PIN" },
-                color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, modifier = Modifier.fadeUp(100))
+            Text(
+                when (mode) {
+                    "setup" -> "Create your PIN"
+                    "confirm" -> "Confirm your PIN"
+                    else -> "Enter your PIN"
+                },
+                color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp,
+                modifier = Modifier.fadeUp(100)
+            )
             Spacer(Modifier.height(8.dp))
-            Text(when (mode) { "setup" -> "Choose 5-digit PIN"; "confirm" -> "Same PIN again"; else -> "Enter 5-digit PIN" },
-                color = NexaMuted, fontSize = 13.sp, modifier = Modifier.fadeUp(150))
+            Text(
+                when (mode) {
+                    "setup" -> "Choose 5-digit PIN"
+                    "confirm" -> "Same PIN again"
+                    else -> "Enter 5-digit PIN to unlock"
+                },
+                color = NexaMuted, fontSize = 13.sp, modifier = Modifier.fadeUp(150)
+            )
         }
+
         Spacer(Modifier.height(44.dp))
+
         Box(Modifier.fillMaxWidth().shake(shake), contentAlignment = Alignment.Center) {
             PinDots(filled = buf.length, error = error != null)
         }
+
         Spacer(Modifier.height(14.dp))
-        Text(if (error != null) error!! else if (busy) "Please wait…" else "",
+        Text(
+            if (error != null) error!! else if (busy) "Please wait…" else "",
             color = if (error != null) NexaRed else NexaMuted, fontSize = 12.5.sp,
-            textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().height(20.dp))
+            textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().height(20.dp)
+        )
+
         Spacer(Modifier.weight(1f))
-        PinKeypad(onDigit = ::onDigit, onDelete = { buf = buf.dropLast(1); error = null },
-            onFingerprint = ::launchFp, fingerprintEnabled = showFp, fingerprintActive = fpActive,
-            modifier = Modifier.padding(bottom = 28.dp))
+
+        PinKeypad(
+            onDigit = ::onDigit,
+            onDelete = { buf = buf.dropLast(1); error = null },
+            onFingerprint = ::launchFp,
+            fingerprintEnabled = showFp,
+            fingerprintActive = fpActive,
+            modifier = Modifier.padding(bottom = 28.dp)
+        )
     }
 
     if (showBioDialog) {
-        AlertDialog(onDismissRequest = { }, containerColor = NexaSurface,
-            titleContentColor = NexaText, textContentColor = NexaMuted,
+        AlertDialog(
+            onDismissRequest = { },
+            containerColor = NexaSurface,
+            titleContentColor = NexaText,
+            textContentColor = NexaMuted,
             title = { Text("Enable Fingerprint?", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp) },
             text = { Text("Setup fingerprint for faster login next time.", fontSize = 13.sp) },
-            confirmButton = { TextButton(onClick = {
-                showBioDialog = false
-                if (activity != null) BiometricHelper.prompt(activity, "Enable Fingerprint", "Place finger",
-                    onSuccess = { prefs.biometricEnabled = true; goVerifyEmail() },
-                    onError = { goVerifyEmail() })
-                else goVerifyEmail()
-            }) { Text("Enable", color = NexaGreen, fontWeight = FontWeight.ExtraBold) } },
-            dismissButton = { TextButton(onClick = { showBioDialog = false; goVerifyEmail() })
-                { Text("Not Now", color = NexaMuted) } })
+            confirmButton = {
+                TextButton(onClick = {
+                    showBioDialog = false
+                    if (activity != null) {
+                        BiometricHelper.prompt(
+                            activity, "Enable Fingerprint", "Place finger",
+                            onSuccess = { prefs.biometricEnabled = true; goVerifyEmail() },
+                            onError = { goVerifyEmail() }
+                        )
+                    } else goVerifyEmail()
+                }) { Text("Enable", color = NexaGreen, fontWeight = FontWeight.ExtraBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBioDialog = false; goVerifyEmail() }) {
+                    Text("Not Now", color = NexaMuted)
+                }
+            }
+        )
     }
 }
