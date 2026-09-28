@@ -38,21 +38,43 @@ object Routes {
     const val KYC = "kyc"
 }
 
-private val Ease = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+private val NexaEase = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+private const val ANIM_MS = 320
 
 @Composable
 fun NexaNav(prefs: Prefs, repo: Repository) {
     val nav = rememberNavController()
-    NavHost(navController = nav, startDestination = Routes.SPLASH,
-        enterTransition = { slideInHorizontally({ it / 6 }, tween(320, easing = Ease)) + fadeIn(tween(300)) },
-        exitTransition = { fadeOut(tween(180)) },
-        popEnterTransition = { fadeIn(tween(220)) },
-        popExitTransition = { slideOutHorizontally({ it / 6 }, tween(280, easing = Ease)) + fadeOut(tween(200)) }
+
+    NavHost(
+        navController = nav,
+        startDestination = Routes.SPLASH,
+
+        enterTransition = {
+            slideInHorizontally(
+                animationSpec = tween(ANIM_MS, easing = NexaEase),
+                initialOffsetX = { fullWidth -> fullWidth / 6 }
+            ) + fadeIn(animationSpec = tween(ANIM_MS))
+        },
+        exitTransition = {
+            fadeOut(animationSpec = tween(180))
+        },
+        popEnterTransition = {
+            fadeIn(animationSpec = tween(220))
+        },
+        popExitTransition = {
+            slideOutHorizontally(
+                animationSpec = tween(280, easing = NexaEase),
+                targetOffsetX = { fullWidth -> fullWidth / 6 }
+            ) + fadeOut(animationSpec = tween(200))
+        }
     ) {
-        composable(Routes.SPLASH) { SplashScreen {
-            val next = if (prefs.token != null) Routes.PIN else Routes.LOGIN
-            nav.navigate(next) { popUpTo(Routes.SPLASH) { inclusive = true } }
-        } }
+        composable(Routes.SPLASH) {
+            SplashScreen {
+                val next = if (prefs.token != null) Routes.PIN else Routes.LOGIN
+                nav.navigate(next) { popUpTo(Routes.SPLASH) { inclusive = true } }
+            }
+        }
+
         composable(Routes.LOGIN)        { LoginScreen(nav, prefs) }
         composable(Routes.SIGNUP)       { SignupScreen(nav, prefs) }
         composable(Routes.PIN)          { PinScreen(nav, prefs, repo) }
@@ -61,23 +83,32 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
         composable(Routes.SETUP_TOTP)   { SetupTotpScreen(nav, prefs, repo) }
         composable(Routes.VERIFY_TOTP)  { VerifyTotpScreen(nav, prefs, repo) }
         composable(Routes.RESET_PIN)    { ResetPinScreen(nav, prefs, repo) }
+
         composable(Routes.HOME)         { HomeScreen(nav, prefs, repo) }
         composable(Routes.HISTORY)      { HistoryScreen(nav, prefs, repo) }
         composable(Routes.PROFILE)      { ProfileScreen(nav, prefs) }
+
         composable(Routes.DEPOSIT)      { DepositScreen(nav, repo) }
         composable(Routes.WITHDRAW)     { WithdrawScreen(nav, prefs, repo) }
         composable(Routes.MYQR)         { MyQrScreen(nav, prefs) }
         composable(Routes.SCAN)         { ScanScreen(nav, prefs) }
         composable(Routes.SEND)         { SendScreen(nav, prefs, repo) }
         composable(Routes.KYC)          { KycScreen(nav, prefs, repo) }
-        composable(Routes.SUCCESS + "?kind={kind}&amount={amount}&id={id}",
+
+        composable(
+            route = Routes.SUCCESS + "?kind={kind}&amount={amount}&id={id}",
             arguments = listOf(
-                navArgument("kind") { type = NavType.StringType; defaultValue = "deposit" },
+                navArgument("kind")   { type = NavType.StringType; defaultValue = "deposit" },
                 navArgument("amount") { type = NavType.StringType; defaultValue = "0" },
-                navArgument("id") { type = NavType.StringType; defaultValue = "—" }
-            )) { back ->
-            SuccessScreen(nav, back.arguments?.getString("kind") ?: "deposit",
-                back.arguments?.getString("amount") ?: "0", back.arguments?.getString("id") ?: "—")
+                navArgument("id")     { type = NavType.StringType; defaultValue = "—" }
+            )
+        ) { backStackEntry ->
+            SuccessScreen(
+                nav = nav,
+                kind = backStackEntry.arguments?.getString("kind") ?: "deposit",
+                amount = backStackEntry.arguments?.getString("amount") ?: "0",
+                id = backStackEntry.arguments?.getString("id") ?: "—"
+            )
         }
     }
 }
