@@ -18,10 +18,6 @@ object NexaConfig {
     const val MIN_WITHDRAW_USD = 20.0
 }
 
-/* ═══════════════════════════════════════
-   User — matches backend response
-   register/login returns `id`, /me returns `_id`
-   ═══════════════════════════════════════ */
 data class User(
     @SerializedName(value = "id", alternate = ["_id"])
     val id: String? = null,
@@ -34,11 +30,8 @@ data class User(
     val kycStatus: String = "unverified",
     val totpEnabled: Boolean = false
 ) {
-    val displayName: String
-        get() = fullName.ifBlank { email.substringBefore("@") }
-
-    val handle: String
-        get() = "@" + email.substringBefore("@").lowercase()
+    val displayName: String get() = fullName.ifBlank { email.substringBefore("@") }
+    val handle: String get() = "@" + email.substringBefore("@").lowercase()
 }
 
 data class AuthResponse(
@@ -50,18 +43,14 @@ data class AuthResponse(
     val requiresTotpSetup: Boolean = false
 )
 
-data class MeResponse(
-    val success: Boolean = false,
-    val user: User? = null,
-    val message: String? = null
-)
+data class MeResponse(val success: Boolean = false, val user: User? = null, val message: String? = null)
 
 data class Transaction(
     @SerializedName(value = "_id", alternate = ["id"])
     val id: String? = null,
-    val type: String = "",              // deposit | transfer | cashout
+    val type: String = "",
     val amount: Double = 0.0,
-    val status: String = "pending",     // pending | approved | rejected
+    val status: String = "pending",
     val trxId: String? = null,
     val senderUid: String? = null,
     val receiverUid: String? = null,
@@ -72,43 +61,9 @@ data class Transaction(
 data class TxListResponse(
     val success: Boolean = false,
     val transactions: List<Transaction> = emptyList(),
+    val count: Int = 0,
     val message: String? = null
 )
-
-/* ═══════════════════════════════════════
-   Requests — match backend exactly
-   ═══════════════════════════════════════ */
-data class RegisterRequest(
-    val idToken: String,
-    val fullName: String,
-    val pin: String
-)
-
-data class LoginPinRequest(
-    val email: String,
-    val pin: String
-)
-
-data class DepositRequest(
-    val amount: Double,
-    val trxId: String,
-    val paymentMethodNumber: String? = null
-)
-
-data class CashoutRequest(
-    val amount: Double,
-    val paymentMethodNumber: String? = null
-)
-
-data class SendMoneyRequest(
-    val receiverUid: String,
-    val amount: Double,
-    val pin: String
-)
-
-/* ═══════════════════════════════════════
-   KYC models (added)
-   ═══════════════════════════════════════ */
 
 data class KycSubmission(
     @SerializedName(value = "_id", alternate = ["id"])
@@ -131,22 +86,13 @@ data class KycListResponse(
     val message: String? = null
 )
 
-data class KycSubmitRequest(
-    val nidNumber: String,
-    val frontUrl: String,
-    val backUrl: String,
-    val selfieUrl: String
-)
-
-data class SimpleResponse(
-    val success: Boolean = false,
-    val message: String? = null
-)
-
-
-/* ═══════════════════════════════════════
-   TOTP models
-   ═══════════════════════════════════════ */
+data class KycSubmitRequest(val nidNumber: String, val frontUrl: String, val backUrl: String, val selfieUrl: String)
+data class SimpleResponse(val success: Boolean = false, val message: String? = null)
+data class RegisterRequest(val idToken: String, val fullName: String, val pin: String)
+data class LoginPinRequest(val email: String, val pin: String, val code: String? = null)
+data class DepositRequest(val amount: Double, val trxId: String, val paymentMethodNumber: String? = null)
+data class CashoutRequest(val amount: Double, val paymentMethodNumber: String? = null)
+data class SendMoneyRequest(val receiverUid: String, val amount: Double, val pin: String)
 
 data class SetupTotpResponse(
     val success: Boolean = false,
@@ -154,27 +100,9 @@ data class SetupTotpResponse(
     val otpauth: String? = null,
     val message: String? = null
 )
-
-data class VerifyTotpRequest(
-    val code: String
-)
-
-data class LoginPinRequestTotp(
-    val email: String,
-    val pin: String,
-    val code: String
-)
-
-data class DisableTotpRequest(
-    val pin: String,
-    val code: String
-)
-
-data class ResetPinRequest(
-    val email: String,
-    val code: String,
-    val newPin: String
-)
+data class VerifyTotpRequest(val code: String)
+data class DisableTotpRequest(val pin: String, val code: String)
+data class ResetPinRequest(val email: String, val code: String, val newPin: String)
 
 interface NexaApi {
     @POST("/api/auth/register-firebase")
@@ -183,59 +111,38 @@ interface NexaApi {
     @POST("/api/auth/login-pin")
     suspend fun loginPin(@Body body: LoginPinRequest): AuthResponse
 
+    @GET("/api/auth/me")
+    suspend fun me(@Header("Authorization") token: String): MeResponse
+
     @POST("/api/auth/setup-totp")
     suspend fun setupTotp(@Header("Authorization") token: String): SetupTotpResponse
 
     @POST("/api/auth/verify-totp-setup")
-    suspend fun verifyTotpSetup(
-        @Header("Authorization") token: String,
-        @Body body: VerifyTotpRequest
-    ): SimpleResponse
+    suspend fun verifyTotpSetup(@Header("Authorization") token: String, @Body body: VerifyTotpRequest): SimpleResponse
 
     @POST("/api/auth/disable-totp")
-    suspend fun disableTotp(
-        @Header("Authorization") token: String,
-        @Body body: DisableTotpRequest
-    ): SimpleResponse
+    suspend fun disableTotp(@Header("Authorization") token: String, @Body body: DisableTotpRequest): SimpleResponse
 
     @POST("/api/auth/reset-pin-with-totp")
     suspend fun resetPinWithTotp(@Body body: ResetPinRequest): SimpleResponse
-
-    @POST("/api/auth/login-totp")
-    suspend fun loginTotp(@Body body: LoginPinRequestTotp): AuthResponse
-
-    @GET("/api/auth/me")
-    suspend fun me(@Header("Authorization") token: String): MeResponse
 
     @GET("/api/transaction/my")
     suspend fun myTransactions(@Header("Authorization") token: String): TxListResponse
 
     @POST("/api/transaction/deposit/request")
-    suspend fun depositRequest(
-        @Header("Authorization") token: String,
-        @Body body: DepositRequest
-    ): AuthResponse
+    suspend fun depositRequest(@Header("Authorization") token: String, @Body body: DepositRequest): AuthResponse
 
     @POST("/api/transaction/cashout/request")
-    suspend fun cashoutRequest(
-        @Header("Authorization") token: String,
-        @Body body: CashoutRequest
-    ): AuthResponse
+    suspend fun cashoutRequest(@Header("Authorization") token: String, @Body body: CashoutRequest): AuthResponse
+
+    @POST("/api/transaction/send")
+    suspend fun sendMoney(@Header("Authorization") token: String, @Body body: SendMoneyRequest): AuthResponse
 
     @POST("/api/kyc/submit")
-    suspend fun submitKyc(
-        @Header("Authorization") token: String,
-        @Body body: KycSubmitRequest
-    ): SimpleResponse
+    suspend fun submitKyc(@Header("Authorization") token: String, @Body body: KycSubmitRequest): SimpleResponse
 
     @GET("/api/kyc/my")
     suspend fun myKyc(@Header("Authorization") token: String): KycListResponse
-
-    @POST("/api/transaction/send")
-    suspend fun sendMoney(
-        @Header("Authorization") token: String,
-        @Body body: SendMoneyRequest
-    ): AuthResponse
 }
 
 object ApiClient {
@@ -243,15 +150,10 @@ object ApiClient {
         .connectTimeout(90, TimeUnit.SECONDS)
         .readTimeout(90, TimeUnit.SECONDS)
         .writeTimeout(90, TimeUnit.SECONDS)
-        .addInterceptor(HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        })
+        .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY })
         .build()
-
     val api: NexaApi = Retrofit.Builder()
-        .baseUrl(BASE_URL)
-        .client(client)
+        .baseUrl(BASE_URL).client(client)
         .addConverterFactory(GsonConverterFactory.create())
-        .build()
-        .create(NexaApi::class.java)
+        .build().create(NexaApi::class.java)
 }
