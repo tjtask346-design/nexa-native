@@ -17,22 +17,26 @@ import com.nexa.app.data.Repository
 import com.nexa.app.ui.screens.*
 
 object Routes {
-    const val SPLASH = "splash"
-    const val LOGIN = "login"
-    const val SIGNUP = "signup"
-    const val PIN = "pin"
-    const val VERIFY_EMAIL = "verify_email"
-    const val HOME = "home"
-    const val HISTORY = "history"
-    const val PROFILE = "profile"
-    const val DEPOSIT = "deposit"
-    const val WITHDRAW = "withdraw"
-    const val MYQR = "myqr"
-    const val SCAN = "scan"
-    const val SEND = "send"
-    const val SUCCESS = "success"
-    const val KYC = "kyc"
-    const val ADMIN = "admin"
+    const val SPLASH        = "splash"
+    const val LOGIN         = "login"
+    const val SIGNUP        = "signup"
+    const val PIN           = "pin"
+    const val VERIFY_EMAIL  = "verify_email"
+    const val FORGOT_PIN    = "forgot_pin"
+    const val SETUP_TOTP    = "setup_totp"
+    const val VERIFY_TOTP   = "verify_totp"
+    const val RESET_PIN     = "reset_pin"
+    const val HOME          = "home"
+    const val HISTORY       = "history"
+    const val PROFILE       = "profile"
+    const val DEPOSIT       = "deposit"
+    const val WITHDRAW      = "withdraw"
+    const val MYQR          = "myqr"
+    const val SCAN          = "scan"
+    const val SEND          = "send"
+    const val SUCCESS       = "success"
+    const val KYC           = "kyc"
+    const val ADMIN         = "admin"
 }
 
 private val NexaEase = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
@@ -59,21 +63,28 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
             ) + fadeOut(tween(200))
         }
     ) {
+        // ─── Auth flow ───
         composable(Routes.SPLASH) {
             SplashScreen {
                 val next = if (prefs.token != null) Routes.PIN else Routes.LOGIN
                 nav.navigate(next) { popUpTo(Routes.SPLASH) { inclusive = true } }
             }
         }
-        composable(Routes.LOGIN)  { LoginScreen(nav, prefs) }
-        composable(Routes.SIGNUP) { SignupScreen(nav, prefs) }
-        composable(Routes.PIN)    { PinScreen(nav, prefs, repo) }
+        composable(Routes.LOGIN)        { LoginScreen(nav, prefs) }
+        composable(Routes.SIGNUP)       { SignupScreen(nav, prefs) }
+        composable(Routes.PIN)          { PinScreen(nav, prefs, repo) }
         composable(Routes.VERIFY_EMAIL) { VerifyEmailScreen(nav, prefs, repo) }
+        composable(Routes.FORGOT_PIN)   { ForgotPinScreen(nav, prefs) }
+        composable(Routes.SETUP_TOTP)   { SetupTotpScreen(nav, prefs, repo) }
+        composable(Routes.VERIFY_TOTP)  { VerifyTotpScreen(nav, prefs, repo) }
+        composable(Routes.RESET_PIN)    { ResetPinScreen(nav, prefs, repo) }
 
+        // ─── Main app ───
         composable(Routes.HOME)    { HomeScreen(nav, prefs, repo) }
         composable(Routes.HISTORY) { HistoryScreen(nav, prefs, repo) }
         composable(Routes.PROFILE) { ProfileScreen(nav, prefs) }
 
+        // ─── Feature screens ───
         composable(Routes.DEPOSIT)  { DepositScreen(nav, repo) }
         composable(Routes.WITHDRAW) { WithdrawScreen(nav, prefs, repo) }
         composable(Routes.MYQR)     { MyQrScreen(nav, prefs) }
@@ -81,6 +92,7 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
         composable(Routes.SEND)     { SendScreen(nav, prefs, repo) }
         composable(Routes.KYC)      { KycScreen(nav, prefs, repo) }
 
+        // ─── Success ───
         composable(
             route = Routes.SUCCESS + "?kind={kind}&amount={amount}&id={id}",
             arguments = listOf(
