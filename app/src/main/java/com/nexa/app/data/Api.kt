@@ -18,6 +18,12 @@ object NexaConfig {
     const val MIN_WITHDRAW_USD = 20.0
 }
 
+data class Wallets(
+    val bscAddress: String? = null,
+    val walletIndex: Int? = null,
+    val xpub: String? = null
+)
+
 data class User(
     @SerializedName(value = "id", alternate = ["_id"])
     val id: String? = null,
@@ -28,7 +34,9 @@ data class User(
     val balance: Double = 0.0,
     val uid: String? = null,
     val kycStatus: String = "unverified",
-    val totpEnabled: Boolean = false
+    val totpEnabled: Boolean = false,
+    val wallets: Wallets? = null,
+    val ltcAddress: String? = null
 ) {
     val displayName: String get() = fullName.ifBlank { email.substringBefore("@") }
     val handle: String get() = "@" + email.substringBefore("@").lowercase()
@@ -92,6 +100,8 @@ data class RegisterRequest(val idToken: String, val fullName: String, val pin: S
 data class LoginPinRequest(val email: String, val pin: String, val code: String? = null)
 data class DepositRequest(val amount: Double, val trxId: String, val paymentMethodNumber: String? = null)
 data class CashoutRequest(val amount: Double, val paymentMethodNumber: String? = null)
+data class WithdrawOnchainRequest(val to: String, val amount: Double)
+
 data class SendMoneyRequest(val receiverUid: String, val amount: Double, val pin: String)
 
 data class SetupTotpResponse(
@@ -134,6 +144,12 @@ interface NexaApi {
 
     @POST("/api/transaction/cashout/request")
     suspend fun cashoutRequest(@Header("Authorization") token: String, @Body body: CashoutRequest): AuthResponse
+
+    @POST("/api/tatum/withdraw/onchain")
+    suspend fun withdrawOnchain(
+        @Header("Authorization") token: String,
+        @Body body: WithdrawOnchainRequest
+    ): SimpleResponse
 
     @POST("/api/transaction/send")
     suspend fun sendMoney(@Header("Authorization") token: String, @Body body: SendMoneyRequest): AuthResponse

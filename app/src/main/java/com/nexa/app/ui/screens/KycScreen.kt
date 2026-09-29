@@ -55,10 +55,22 @@ fun KycScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var loading by remember { mutableStateOf(true) }
     var existing by remember { mutableStateOf<KycSubmission?>(null) }
 
-    LaunchedEffect(Unit) {
-        repo.myKyc().onSuccess { existing = it.kyc }
-        loading = false
+    fun reload() {
+        loading = true
+        scope.launch {
+            repo.myKyc()
+                .onSuccess { r ->
+                    existing = r.kyc
+                    loading = false
+                }
+                .onFailure {
+                    existing = null
+                    loading = false
+                }
+        }
     }
+
+    LaunchedEffect(Unit) { reload() }
 
     Column(Modifier.fillMaxSize().background(NexaBg)) {
         Row(
@@ -82,9 +94,7 @@ fun KycScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text("Loading…", color = NexaMuted, fontSize = 14.sp)
             }
-            existing == null -> KycForm(prefs, repo, scope) {
-                existing = KycSubmission(status = "pending")
-            }
+            existing == null -> KycForm(prefs, repo, scope) { reload() }
             existing?.status == "approved" -> StatusView("approved")
             existing?.status == "rejected" -> StatusView("rejected", existing?.adminNote) {
                 existing = null

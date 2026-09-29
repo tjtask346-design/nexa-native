@@ -57,6 +57,11 @@ class Repository(private val prefs: Prefs) {
         withContext(Dispatchers.IO) { wrap { api.cashoutRequest(authHeader(), CashoutRequest(amount, methodNumber)) } }
     suspend fun sendMoney(receiverUid: String, amount: Double, pin: String): Result<AuthResponse> =
         withContext(Dispatchers.IO) { wrap { api.sendMoney(authHeader(), SendMoneyRequest(receiverUid, amount, pin)) } }
+        suspend fun withdrawCrypto(toAddress: String, amount: Double): Result<SimpleResponse> =
+        withContext(Dispatchers.IO) {
+            wrap { api.withdrawOnchain(authHeader(), WithdrawOnchainRequest(toAddress, amount)) }
+        }
+
     suspend fun submitKyc(nid: String, front: String, back: String, selfie: String): Result<SimpleResponse> =
         withContext(Dispatchers.IO) { wrap { api.submitKyc(authHeader(), KycSubmitRequest(nid, front, back, selfie)) } }
     suspend fun myKyc(): Result<KycListResponse> = withContext(Dispatchers.IO) { wrap { api.myKyc(authHeader()) } }
