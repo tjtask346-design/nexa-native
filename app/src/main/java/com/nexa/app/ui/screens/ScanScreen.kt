@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,7 +27,6 @@ import androidx.navigation.NavController
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.nexa.app.data.Prefs
-import com.nexa.app.nav.Routes
 import com.nexa.app.ui.components.GradientButton
 import com.nexa.app.ui.components.NexaIconButton
 import com.nexa.app.ui.theme.*
@@ -35,19 +36,18 @@ import kotlinx.coroutines.launch
 @Composable
 fun ScanScreen(nav: NavController, prefs: Prefs) {
     val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()   // ← নতুন লাইন
+    val scope = rememberCoroutineScope()
     var lastResult by remember { mutableStateOf<String?>(null) }
-    var launched by remember { mutableStateOf(false) }
+    var autoLaunched by remember { mutableStateOf(false) }
 
     val launcher = rememberLauncherForActivityResult(ScanContract()) { result ->
         if (result.contents != null) {
             lastResult = result.contents
             Toast.makeText(ctx, "Scanned: ${result.contents.take(40)}", Toast.LENGTH_LONG).show()
-        }
-        // ✅ Fix: scope.launch দিয়ে delay কল
-        scope.launch {
-            delay(500)
-            nav.popBackStack()
+            scope.launch {
+                delay(600)
+                nav.popBackStack()
+            }
         }
     }
 
@@ -62,11 +62,11 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
         launcher.launch(options)
     }
 
-    // ⚡ Auto-launch scanner when screen opens
+    // ⚡ Auto-launch on first appear
     LaunchedEffect(Unit) {
-        if (!launched) {
-            launched = true
-            delay(400)
+        if (!autoLaunched) {
+            autoLaunched = true
+            delay(350)
             launchScanner()
         }
     }
@@ -94,17 +94,23 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // ⚡ Big icon — TAP to launch scanner
             Box(
                 Modifier
                     .size(220.dp)
                     .clip(RoundedCornerShape(28.dp))
                     .background(Brush.radialGradient(listOf(NexaGreen.copy(alpha = 0.10f), Color.Transparent)))
-                    .border(2.dp, NexaGreen.copy(alpha = 0.35f), RoundedCornerShape(28.dp)),
+                    .border(2.dp, NexaGreen.copy(alpha = 0.35f), RoundedCornerShape(28.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { launchScanner() }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Filled.QrCodeScanner,
-                    contentDescription = null,
+                    contentDescription = "Open Scanner",
                     tint = NexaGreen,
                     modifier = Modifier.size(96.dp)
                 )
