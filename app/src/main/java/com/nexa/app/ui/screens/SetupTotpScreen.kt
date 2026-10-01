@@ -59,6 +59,7 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var lastSubmitted by remember { mutableStateOf("") }
     val token = AuthState.pendingToken ?: prefs.token
 
     LaunchedEffect(Unit) {
@@ -82,6 +83,38 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         } catch (_: Exception) { null }
     }
 
+    fun verify(otp: String) {
+        if (busy || token.isNullOrBlank()) return
+        scope.launch {
+            busy = true; error = null
+            repo.verifyTotpSetup(token, otp).onSuccess { r ->
+                busy = false
+                if (r.success) {
+                    AuthState.reset()
+                    Toast.makeText(ctx, "2FA enabled ✓", Toast.LENGTH_SHORT).show()
+                    nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
+                } else {
+                    error = r.message ?: "Invalid code"
+                    code = ""
+                    lastSubmitted = ""
+                }
+            }.onFailure {
+                busy = false
+                error = it.message ?: "Network error"
+                code = ""
+                lastSubmitted = ""
+            }
+        }
+    }
+
+    // ⚡ Auto-verify when 6 digits entered/pasted
+    LaunchedEffect(code) {
+        if (code.length == 6 && code != lastSubmitted && !busy && !loading && error == null) {
+            lastSubmitted = code
+            verify(code)
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(NexaBg).padding(horizontal = 24.dp)) {
         Spacer(Modifier.height(40.dp))
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -99,7 +132,7 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
             when {
                 loading -> Text("Generating secret…", color = NexaMuted, fontSize = 13.sp)
-                error != null -> Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                error != null && secret.isBlank() -> Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                     .background(NexaRed.copy(alpha = 0.1f)).border(1.dp, NexaRed.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
                     .padding(14.dp)) { Text(error!!, color = NexaRed, fontSize = 12.5.sp) }
                 else -> {
@@ -130,19 +163,13 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     Text("ENTER 6-DIGIT CODE", color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.6.sp)
                     Spacer(Modifier.height(12.dp))
                     CodeInput6(value = code) { code = it.filter { c -> c.isDigit() }.take(6) }
+                    if (error != null) { Spacer(Modifier.height(12.dp))
+                        Text(error!!, color = NexaRed, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold) }
+                    if (busy) { Spacer(Modifier.height(12.dp))
+                        Text("Verifying…", color = NexaGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
                     Spacer(Modifier.height(24.dp))
                     GradientButton(text = "Verify & Enable", enabled = code.length == 6 && !busy, loading = busy,
-                        onClick = {
-                            scope.launch {
-                                busy = true
-                                repo.verifyTotpSetup(token!!, code).onSuccess { r ->
-                                    busy = false
-                                    if (r.success) { AuthState.reset(); Toast.makeText(ctx, "2FA enabled ✓", Toast.LENGTH_SHORT).show()
-                                        nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } } }
-                                    else { error = r.message ?: "Invalid code"; code = "" }
-                                }.onFailure { busy = false; error = it.message ?: "Network error"; code = "" }
-                            }
-                        })
+                        onClick = { verify(code) })
                     Spacer(Modifier.height(30.dp))
                 }
             }
