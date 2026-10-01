@@ -30,10 +30,12 @@ import com.nexa.app.ui.components.GradientButton
 import com.nexa.app.ui.components.NexaIconButton
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun ScanScreen(nav: NavController, prefs: Prefs) {
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()   // ← নতুন লাইন
     var lastResult by remember { mutableStateOf<String?>(null) }
     var launched by remember { mutableStateOf(false) }
 
@@ -42,9 +44,11 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
             lastResult = result.contents
             Toast.makeText(ctx, "Scanned: ${result.contents.take(40)}", Toast.LENGTH_LONG).show()
         }
-        // Auto-return to home after scan
-        delay(500)
-        nav.popBackStack()
+        // ✅ Fix: scope.launch দিয়ে delay কল
+        scope.launch {
+            delay(500)
+            nav.popBackStack()
+        }
     }
 
     fun launchScanner() {
