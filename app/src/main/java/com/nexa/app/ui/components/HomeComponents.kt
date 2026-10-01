@@ -1,11 +1,18 @@
 package com.nexa.app.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -16,10 +23,12 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nexa.app.R
 import com.nexa.app.data.Transaction
 import com.nexa.app.ui.theme.*
 
@@ -46,7 +55,6 @@ fun BalanceCard(
             )
             .border(1.dp, NexaGreen.copy(alpha = 0.2f), RoundedCornerShape(26.dp))
             .drawBehind {
-                // Radial glow top-right
                 drawRect(
                     brush = Brush.radialGradient(
                         colors = listOf(NexaGreen.copy(alpha = 0.35f), Color.Transparent),
@@ -54,7 +62,6 @@ fun BalanceCard(
                         radius = size.width * 0.75f
                     )
                 )
-                // Radial glow bottom-left
                 drawRect(
                     brush = Brush.radialGradient(
                         colors = listOf(NexaTeal.copy(alpha = 0.28f), Color.Transparent),
@@ -66,7 +73,6 @@ fun BalanceCard(
             .padding(22.dp)
     ) {
         Column {
-            // Top row: label + hide button
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -103,13 +109,11 @@ fun BalanceCard(
 
             Spacer(Modifier.height(12.dp))
 
-            // Amount
             Text(
                 if (hidden) "•••••••" else "$" + String.format("%,.2f", balance),
                 fontSize = 40.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-1.6).sp,
-                fontFamily = PlusJakarta,
                 style = androidx.compose.ui.text.TextStyle(
                     brush = Brush.verticalGradient(listOf(Color.White, Color(0xFFA7F3D0)))
                 )
@@ -117,7 +121,6 @@ fun BalanceCard(
 
             Spacer(Modifier.height(4.dp))
 
-            // BDT equivalent
             Text(
                 if (hidden) "≈ ৳ ••••••" else "≈ ৳" + String.format("%,.2f", balance * 122),
                 color = NexaText.copy(alpha = 0.6f),
@@ -127,7 +130,6 @@ fun BalanceCard(
 
             Spacer(Modifier.height(18.dp))
 
-            // Month in/out chips
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 MonthChip("This Month In", "+$" + String.format("%,.2f", monthIn), Modifier.weight(1f))
                 MonthChip("This Month Out", "−$" + String.format("%,.2f", monthOut), Modifier.weight(1f))
@@ -163,12 +165,12 @@ private fun MonthChip(label: String, value: String, modifier: Modifier = Modifie
 }
 
 // ═══════════════════════════════════════
-// QUICK ACTION BUTTON
+// QUICK ACTION — With glow + Material Icon
 // ═══════════════════════════════════════
 @Composable
 fun QuickAction(
     label: String,
-    iconPath: String,
+    icon: ImageVector,
     iconColor: Color,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
@@ -187,10 +189,24 @@ fun QuickAction(
                 .size(52.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(NexaSurface2)
-                .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(18.dp)),
+                .border(1.dp, iconColor.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                .drawBehind {
+                    drawRect(
+                        brush = Brush.radialGradient(
+                            colors = listOf(iconColor.copy(alpha = 0.22f), Color.Transparent),
+                            center = Offset(size.width / 2, size.height / 2),
+                            radius = size.width * 0.75f
+                        )
+                    )
+                },
             contentAlignment = Alignment.Center
         ) {
-            Text(iconPath, color = iconColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Icon(
+                icon,
+                contentDescription = label,
+                tint = iconColor,
+                modifier = Modifier.size(22.dp)
+            )
         }
         Text(
             label,
@@ -240,13 +256,13 @@ fun SectionHeader(
 }
 
 // ═══════════════════════════════════════
-// QUICK DEPOSIT METHOD CARD
+// QUICK DEPOSIT METHOD CARD — With real image + glow
 // ═══════════════════════════════════════
 @Composable
 fun MethodCard(
     name: String,
     feeText: String,
-    mark: String,
+    imageRes: Int,
     markColor: Color,
     onClick: () -> Unit
 ) {
@@ -256,6 +272,15 @@ fun MethodCard(
             .clip(RoundedCornerShape(18.dp))
             .background(NexaSurface)
             .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(18.dp))
+            .drawBehind {
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(markColor.copy(alpha = 0.16f), Color.Transparent),
+                        center = Offset(0f, 0f),
+                        radius = size.width * 0.9f
+                    )
+                )
+            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -266,12 +291,16 @@ fun MethodCard(
         Column {
             Box(
                 Modifier
-                    .size(34.dp)
+                    .size(36.dp)
                     .clip(RoundedCornerShape(11.dp))
-                    .background(markColor.copy(alpha = 0.15f)),
+                    .background(markColor.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(mark, color = markColor, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                Image(
+                    painter = painterResource(imageRes),
+                    contentDescription = name,
+                    modifier = Modifier.size(24.dp)
+                )
             }
             Spacer(Modifier.height(10.dp))
             Text(name, color = NexaText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -282,14 +311,14 @@ fun MethodCard(
 }
 
 // ═══════════════════════════════════════
-// TRANSACTION ROW (shared between Home & History)
+// TRANSACTION ROW — With Material Icons + glow
 // ═══════════════════════════════════════
 @Composable
 fun TxRow(tx: Transaction) {
     val isIn = tx.type == "deposit"
     val title = when (tx.type) {
-        "deposit" -> "Deposit · bKash"
-        "cashout" -> "Withdraw · bKash"
+        "deposit" -> "Deposit"
+        "cashout" -> "Withdraw"
         "transfer" -> "Sent · Nexa"
         else -> tx.type.replaceFirstChar { it.uppercase() }
     }
@@ -304,6 +333,7 @@ fun TxRow(tx: Transaction) {
         "pending" -> NexaTeal
         else -> NexaRed
     }
+    val iconColor = if (isIn) NexaGreen else NexaTeal
 
     Row(
         Modifier
@@ -311,6 +341,15 @@ fun TxRow(tx: Transaction) {
             .clip(RoundedCornerShape(17.dp))
             .background(NexaSurface)
             .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(17.dp))
+            .drawBehind {
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(iconColor.copy(alpha = 0.10f), Color.Transparent),
+                        center = Offset(0f, size.height / 2),
+                        radius = size.height * 0.9f
+                    )
+                )
+            }
             .padding(13.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(13.dp)
@@ -319,14 +358,14 @@ fun TxRow(tx: Transaction) {
             Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(13.dp))
-                .background(if (isIn) NexaGreen.copy(alpha = 0.15f) else NexaTeal.copy(alpha = 0.15f)),
+                .background(iconColor.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                if (isIn) "↓" else "↑",
-                color = if (isIn) NexaGreen else NexaTeal,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 18.sp
+            Icon(
+                if (isIn) Icons.Filled.ArrowDownward else Icons.Filled.ArrowUpward,
+                contentDescription = title,
+                tint = iconColor,
+                modifier = Modifier.size(20.dp)
             )
         }
         Column(Modifier.weight(1f)) {
