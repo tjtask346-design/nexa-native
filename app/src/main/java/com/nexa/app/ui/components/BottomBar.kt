@@ -7,6 +7,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -46,6 +47,7 @@ fun NexaBottomBar(
         TabItem("Home", Icons.Filled.Home, currentRoute == Routes.HOME, Modifier.weight(1f)) { onNavigate(Routes.HOME) }
         TabItem("History", Icons.Filled.ReceiptLong, currentRoute == Routes.HISTORY, Modifier.weight(1f)) { onNavigate(Routes.HISTORY) }
 
+        // ═══ FAB with proper + icon ═══
         Box(
             Modifier
                 .size(56.dp)
@@ -58,7 +60,12 @@ fun NexaBottomBar(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text("+", color = Color(0xFF04140D), fontSize = 28.sp, fontWeight = FontWeight.Light)
+            Icon(
+                Icons.Filled.Add,
+                contentDescription = "Add",
+                tint = Color(0xFF04140D),
+                modifier = Modifier.size(26.dp)
+            )
         }
 
         TabItem("Scan", Icons.Filled.QrCodeScanner, currentRoute == Routes.SCAN, Modifier.weight(1f)) { onNavigate(Routes.SCAN) }
