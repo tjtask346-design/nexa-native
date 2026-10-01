@@ -29,18 +29,22 @@ import com.nexa.app.nav.Routes
 import com.nexa.app.ui.components.GradientButton
 import com.nexa.app.ui.components.NexaIconButton
 import com.nexa.app.ui.theme.*
+import kotlinx.coroutines.delay
 
 @Composable
 fun ScanScreen(nav: NavController, prefs: Prefs) {
     val ctx = LocalContext.current
     var lastResult by remember { mutableStateOf<String?>(null) }
+    var launched by remember { mutableStateOf(false) }
 
     val launcher = rememberLauncherForActivityResult(ScanContract()) { result ->
         if (result.contents != null) {
             lastResult = result.contents
             Toast.makeText(ctx, "Scanned: ${result.contents.take(40)}", Toast.LENGTH_LONG).show()
-            // TODO: parse nexa://pay?to=...&id=...  → navigate to send screen
         }
+        // Auto-return to home after scan
+        delay(500)
+        nav.popBackStack()
     }
 
     fun launchScanner() {
@@ -52,6 +56,15 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
             setBarcodeImageEnabled(false)
         }
         launcher.launch(options)
+    }
+
+    // ⚡ Auto-launch scanner when screen opens
+    LaunchedEffect(Unit) {
+        if (!launched) {
+            launched = true
+            delay(400)
+            launchScanner()
+        }
     }
 
     Column(Modifier.fillMaxSize().background(NexaBg)) {
@@ -126,7 +139,7 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
 
         Box(Modifier.padding(24.dp)) {
             GradientButton(
-                text = "Open Camera Scanner",
+                text = "Open Scanner",
                 onClick = { launchScanner() }
             )
         }
