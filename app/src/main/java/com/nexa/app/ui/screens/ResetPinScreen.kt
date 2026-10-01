@@ -44,10 +44,18 @@ fun ResetPinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var error by remember { mutableStateOf<String?>(null) }
     val email = AuthState.pendingEmail ?: prefs.email ?: ""
 
+    // ⚡ Auto-advance to step 2 when 6 digits are entered/pasted
+    LaunchedEffect(totpCode) {
+        if (totpCode.length == 6 && step == 1) {
+            error = null
+            step = 2
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(NexaBg).padding(horizontal = 24.dp)) {
         Spacer(Modifier.height(22.dp))
         NexaIconButton(onClick = {
-            if (step > 1) { step = 1; buf = ""; error = null } else nav.popBackStack()
+            if (step > 1) { step = 1; buf = ""; error = null; totpCode = "" } else nav.popBackStack()
         }) { Text("←", color = NexaText, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
 
         when (step) {
@@ -108,8 +116,8 @@ fun ResetPinScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                                                 busy = false
                                                 if (r.success) { Toast.makeText(ctx, "PIN reset ✓", Toast.LENGTH_SHORT).show()
                                                     AuthState.reset(); nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } } }
-                                                else { error = r.message ?: "Reset failed"; buf = ""; step = 1 }
-                                            }.onFailure { busy = false; error = it.message ?: "Network error"; buf = ""; step = 1 }
+                                                else { error = r.message ?: "Reset failed"; buf = ""; step = 1; totpCode = "" }
+                                            }.onFailure { busy = false; error = it.message ?: "Network error"; buf = ""; step = 1; totpCode = "" }
                                         }
                                     } else { error = "PINs do not match"; buf = ""; firstPin = ""; step = 2 }
                                 }
