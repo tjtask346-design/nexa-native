@@ -33,9 +33,41 @@ fun VerifyTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var lastSubmitted by remember { mutableStateOf("") }
 
     val email = AuthState.pendingEmail ?: prefs.email ?: ""
     val pin = prefs.pin ?: ""
+
+    fun verify(otp: String) {
+        if (busy) return
+        scope.launch {
+            busy = true; error = null
+            repo.loginPin(email, pin, otp).onSuccess { r ->
+                busy = false
+                if (r.success && r.token != null) {
+                    repo.saveSession(r.token, r.user); AuthState.reset()
+                    nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
+                } else {
+                    error = r.message ?: "Invalid code"
+                    code = ""
+                    lastSubmitted = ""
+                }
+            }.onFailure {
+                busy = false
+                error = it.message ?: "Network error"
+                code = ""
+                lastSubmitted = ""
+            }
+        }
+    }
+
+    // ⚡ Auto-verify: paste বা type — ৬ ডিজিট হলেই verify
+    LaunchedEffect(code) {
+        if (code.length == 6 && code != lastSubmitted && !busy) {
+            lastSubmitted = code
+            verify(code)
+        }
+    }
 
     Column(Modifier.fillMaxSize().background(NexaBg).padding(horizontal = 24.dp)) {
         Spacer(Modifier.height(22.dp))
@@ -59,19 +91,13 @@ fun VerifyTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             CodeInput6(value = code) { code = it.filter { c -> c.isDigit() }.take(6) }
             if (error != null) { Spacer(Modifier.height(16.dp))
                 Text(error!!, color = NexaRed, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold) }
+            if (busy) { Spacer(Modifier.height(12.dp))
+                Text("Verifying…", color = NexaGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
         }
-        GradientButton(text = "Verify & Sign In", enabled = code.length == 6 && !busy, loading = busy,
-            onClick = {
-                scope.launch {
-                    busy = true; error = null
-                    repo.loginPin(email, pin, code).onSuccess { r ->
-                        busy = false
-                        if (r.success && r.token != null) {
-                            repo.saveSession(r.token, r.user); AuthState.reset()
-                            nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
-                        } else { error = r.message ?: "Invalid code"; code = "" }
-                    }.onFailure { busy = false; error = it.message ?: "Network error"; code = "" }
-                }
-            }, modifier = Modifier.padding(bottom = 32.dp))
+        GradientButton(text = "Verify & Sign In",
+            enabled = code.length == 6 && !busy,
+            loading = busy,
+            onClick = { verify(code) },
+            modifier = Modifier.padding(bottom = 32.dp))
     }
 }
