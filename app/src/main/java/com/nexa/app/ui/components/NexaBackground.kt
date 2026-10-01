@@ -3,12 +3,18 @@ package com.nexa.app.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.nexa.app.ui.theme.NexaBg
 import com.nexa.app.ui.theme.NexaGreen
 import com.nexa.app.ui.theme.NexaTeal
@@ -22,46 +28,71 @@ fun NexaScreen(
         modifier
             .fillMaxSize()
             .background(NexaBg)
-            .drawBehind {
-                // ═══ TOP-LEFT GREEN GLOW (soft, multi-stop) ═══
-                val glRadius = size.width * 1.15f
-                val glCenter = Offset(-size.width * 0.15f, -size.height * 0.10f)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colorStops = arrayOf(
-                            0.00f to NexaGreen.copy(alpha = 0.26f),
-                            0.25f to NexaGreen.copy(alpha = 0.16f),
-                            0.50f to NexaGreen.copy(alpha = 0.07f),
-                            0.75f to NexaGreen.copy(alpha = 0.02f),
-                            1.00f to Color.Transparent
-                        ),
-                        center = glCenter,
-                        radius = glRadius
-                    ),
-                    radius = glRadius,
-                    center = glCenter
-                )
-
-                // ═══ TOP-RIGHT TEAL GLOW ═══
-                val trRadius = size.width * 0.95f
-                val trCenter = Offset(size.width * 1.20f, size.height * 0.18f)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colorStops = arrayOf(
-                            0.00f to NexaTeal.copy(alpha = 0.20f),
-                            0.25f to NexaTeal.copy(alpha = 0.12f),
-                            0.50f to NexaTeal.copy(alpha = 0.05f),
-                            0.75f to NexaTeal.copy(alpha = 0.015f),
-                            1.00f to Color.Transparent
-                        ),
-                        center = trCenter,
-                        radius = trRadius
-                    ),
-                    radius = trRadius,
-                    center = trCenter
-                )
-            }
     ) {
+        // ═══════════════════════════════════════════════
+        // TOP-LEFT GREEN GLOW  ← HTML .phone::before
+        // top:-190px  left:-90px  size:360x360  blur:34px
+        // ═══════════════════════════════════════════════
+        Box(
+            Modifier
+                .offset(x = (-90).dp, y = (-190).dp)
+                .size(360.dp)
+                .blur(
+                    radius = 34.dp,
+                    edgeTreatment = BlurredEdgeTreatment.Unbounded  // ← KEY FIX
+                )
+                .drawWithCache {
+                    val brush = Brush.radialGradient(
+                        colorStops = arrayOf(
+                            0.00f to NexaGreen.copy(alpha = 0.22f),
+                            0.68f to Color.Transparent          // HTML: transparent 68%
+                        ),
+                        center = Offset(size.width / 2f, size.height / 2f),
+                        radius = size.minDimension / 2f
+                    )
+                    onDrawBehind {
+                        drawCircle(
+                            brush = brush,
+                            radius = size.minDimension / 2f,
+                            center = Offset(size.width / 2f, size.height / 2f)
+                        )
+                    }
+                }
+        )
+
+        // ═══════════════════════════════════════════════
+        // TOP-RIGHT TEAL GLOW  ← HTML .phone::after
+        // top:130px  right:-150px  size:320x320  blur:34px
+        // ═══════════════════════════════════════════════
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 150.dp, y = 130.dp)
+                .size(320.dp)
+                .blur(
+                    radius = 34.dp,
+                    edgeTreatment = BlurredEdgeTreatment.Unbounded  // ← KEY FIX
+                )
+                .drawWithCache {
+                    val brush = Brush.radialGradient(
+                        colorStops = arrayOf(
+                            0.00f to NexaTeal.copy(alpha = 0.16f),
+                            0.70f to Color.Transparent          // HTML: transparent 70%
+                        ),
+                        center = Offset(size.width / 2f, size.height / 2f),
+                        radius = size.minDimension / 2f
+                    )
+                    onDrawBehind {
+                        drawCircle(
+                            brush = brush,
+                            radius = size.minDimension / 2f,
+                            center = Offset(size.width / 2f, size.height / 2f)
+                        )
+                    }
+                }
+        )
+
+        // ═══ Actual screen content on top ═══
         content()
     }
 }
