@@ -23,6 +23,7 @@ import com.nexa.app.data.Transaction
 import com.nexa.app.nav.Routes
 import com.nexa.app.ui.components.NexaBottomBar
 import com.nexa.app.ui.components.NexaFabSheet
+import com.nexa.app.ui.components.TxRow
 import com.nexa.app.ui.theme.*
 
 @Composable
