@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nexa.app.data.Transaction
 import com.nexa.app.ui.theme.*
 
 // ═══════════════════════════════════════
@@ -167,7 +168,7 @@ private fun MonthChip(label: String, value: String, modifier: Modifier = Modifie
 @Composable
 fun QuickAction(
     label: String,
-    iconPath: String, // SVG path data (simplified) — এখানে emoji/text use করব
+    iconPath: String,
     iconColor: Color,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
@@ -276,6 +277,82 @@ fun MethodCard(
             Text(name, color = NexaText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Spacer(Modifier.height(2.dp))
             Text(feeText, color = NexaDim, fontSize = 10.5.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+// ═══════════════════════════════════════
+// TRANSACTION ROW (shared between Home & History)
+// ═══════════════════════════════════════
+@Composable
+fun TxRow(tx: Transaction) {
+    val isIn = tx.type == "deposit"
+    val title = when (tx.type) {
+        "deposit" -> "Deposit · bKash"
+        "cashout" -> "Withdraw · bKash"
+        "transfer" -> "Sent · Nexa"
+        else -> tx.type.replaceFirstChar { it.uppercase() }
+    }
+    val sign = if (isIn) "+" else "−"
+    val pill = when (tx.status) {
+        "approved" -> "Completed"
+        "pending" -> "Pending"
+        else -> "Failed"
+    }
+    val pillColor = when (tx.status) {
+        "approved" -> NexaGreen
+        "pending" -> NexaTeal
+        else -> NexaRed
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(17.dp))
+            .background(NexaSurface)
+            .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(17.dp))
+            .padding(13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(13.dp)
+    ) {
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(if (isIn) NexaGreen.copy(alpha = 0.15f) else NexaTeal.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                if (isIn) "↓" else "↑",
+                color = if (isIn) NexaGreen else NexaTeal,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 18.sp
+            )
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, color = NexaText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+            Text(
+                (tx.createdAt ?: "").take(10) + " · " + (tx.trxId?.takeLast(6) ?: "—"),
+                color = NexaDim,
+                fontSize = 11.sp
+            )
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                "$sign$${String.format("%,.2f", tx.amount)}",
+                color = if (isIn) NexaGreen else NexaText,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Box(
+                Modifier
+                    .padding(top = 3.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(pillColor.copy(alpha = 0.14f))
+                    .padding(horizontal = 7.dp, vertical = 2.dp)
+            ) {
+                Text(pill, color = pillColor, fontSize = 9.5.sp, fontWeight = FontWeight.ExtraBold)
+            }
         }
     }
 }
