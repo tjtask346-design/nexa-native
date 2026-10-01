@@ -1,5 +1,6 @@
 package com.nexa.app.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,12 +11,20 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,6 +48,7 @@ import java.util.Calendar
 
 @Composable
 fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
+    val ctx = LocalContext.current
     var balance by remember { mutableStateOf(0.0) }
     var txs by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var hidden by remember { mutableStateOf(false) }
@@ -88,9 +98,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Box(
-                        Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
-                    ) {
+                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))) {
                         Image(
                             painterResource(R.drawable.nexa_logo),
                             contentDescription = null,
@@ -114,15 +122,27 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                             maxLines = 1
                         )
                     }
+                    // 🔔 Working bell
                     Box(
                         Modifier
                             .size(40.dp)
                             .clip(RoundedCornerShape(13.dp))
                             .background(NexaSurface2)
-                            .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(13.dp)),
+                            .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(13.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                Toast.makeText(ctx, "No new notifications", Toast.LENGTH_SHORT).show()
+                            },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("🔔", fontSize = 16.sp)
+                        Icon(
+                            Icons.Filled.Notifications,
+                            contentDescription = "Notifications",
+                            tint = NexaText,
+                            modifier = Modifier.size(19.dp)
+                        )
                     }
                 }
 
@@ -141,16 +161,16 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    QuickAction("Deposit", "↓", NexaGreen, Modifier.weight(1f)) {
+                    QuickAction("Deposit", Icons.Filled.ArrowDownward, NexaGreen, Modifier.weight(1f)) {
                         nav.navigate(Routes.DEPOSIT)
                     }
-                    QuickAction("Withdraw", "↑", NexaTeal, Modifier.weight(1f)) {
+                    QuickAction("Withdraw", Icons.Filled.ArrowUpward, NexaTeal, Modifier.weight(1f)) {
                         nav.navigate(Routes.WITHDRAW)
                     }
-                    QuickAction("Scan", "▢", NexaGreen, Modifier.weight(1f)) {
+                    QuickAction("Scan", Icons.Filled.QrCodeScanner, NexaGreen, Modifier.weight(1f)) {
                         nav.navigate(Routes.SCAN)
                     }
-                    QuickAction("My QR", "◫", NexaTeal, Modifier.weight(1f)) {
+                    QuickAction("My QR", Icons.Filled.QrCode2, NexaTeal, Modifier.weight(1f)) {
                         nav.navigate(Routes.MYQR)
                     }
                 }
@@ -168,16 +188,13 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                         .padding(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    MethodCard("bKash", "0% fee", "b", Color(0xFFE2136E)) {
+                    MethodCard("USDT", "BEP20 · BSC", R.drawable.usdt, Color(0xFF26A17B)) {
                         nav.navigate(Routes.DEPOSIT)
                     }
-                    MethodCard("USDT", "Fee $1", "₮", Color(0xFF26A17B)) {
+                    MethodCard("Litecoin", "LTC Network", R.drawable.ltc, Color(0xFF345D9D)) {
                         nav.navigate(Routes.DEPOSIT)
                     }
-                    MethodCard("Litecoin", "Fee $0.10", "Ł", Color(0xFF345D9D)) {
-                        nav.navigate(Routes.DEPOSIT)
-                    }
-                    MethodCard("Nexa User", "0% fee", "N", NexaGreen) {
+                    MethodCard("Nexa User", "0% fee", R.drawable.nexa_logo, NexaGreen) {
                         nav.navigate(Routes.MYQR)
                     }
                 }
@@ -211,7 +228,6 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 }
             }
 
-            // ══════════ BOTTOM BAR ══════════
             NexaBottomBar(
                 currentRoute = Routes.HOME,
                 onNavigate = { nav.navigate(it) },
