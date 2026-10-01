@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Icon
@@ -49,30 +50,56 @@ import com.nexa.app.ui.components.NexaIconButton
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.launch
 
+// Virtual statuses for cases where KYC doc is null but user.kycStatus is set
+private const val STATUS_NONE = "none"
+private const val STATUS_PENDING = "pending"
+private const val STATUS_APPROVED = "approved"
+private const val STATUS_REJECTED = "rejected"
+
 @Composable
 fun KycScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
-    var existing by remember { mutableStateOf<KycSubmission?>(null) }
+    var kyc by remember { mutableStateOf<KycSubmission?>(null) }
+    var userStatus by remember { mutableStateOf(STATUS_NONE) }
+    var fetchError by remember { mutableStateOf<String?>(null) }
 
     fun reload() {
         loading = true
+        fetchError = null
         scope.launch {
-            repo.myKyc()
-                .onSuccess { r ->
-                    existing = r.kyc
-                    loading = false
-                }
-                .onFailure {
-                    existing = null
-                    loading = false
-                }
+            // Load KYC doc
+            val kycRes = repo.myKyc()
+            val kycDoc = kycRes.getOrNull()?.kyc
+            kyc = kycDoc
+
+            // Load user status as fallback
+            val meRes = repo.me()
+            val meStatus = meRes.getOrNull()?.user?.kycStatus ?: "unverified"
+            userStatus = when (meStatus) {
+                "pending" -> STATUS_PENDING
+                "verified" -> STATUS_APPROVED
+                "rejected" -> STATUS_REJECTED
+                else -> STATUS_NONE
+            }
+
+            loading = false
         }
     }
 
     LaunchedEffect(Unit) { reload() }
 
+    // Determine effective status
+    val effectiveStatus: String = when {
+        kyc?.status == "pending" -> STATUS_PENDING
+        kyc?.status == "approved" -> STATUS_APPROVED
+        kyc?.status == "rejected" -> STATUS_REJECTED
+        userStatus != STATUS_NONE -> userStatus
+        else -> STATUS_NONE
+    }
+
     Column(Modifier.fillMaxSize().background(NexaBg)) {
+        // Header
         Row(
             Modifier.fillMaxWidth().padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -87,26 +114,60 @@ fun KycScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center
             )
-            Spacer(Modifier.width(40.dp))
+            NexaIconButton(onClick = { reload() }) {
+                Icon(Icons.Filled.Refresh, null, tint = NexaText, modifier = Modifier.size(18.dp))
+            }
         }
 
         when {
             loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text("Loading…", color = NexaMuted, fontSize = 14.sp)
             }
-            existing == null -> KycForm(prefs, repo, scope) { reload() }
-            existing?.status == "approved" -> StatusView("approved")
-            existing?.status == "rejected" -> StatusView("rejected", existing?.adminNote) {
-                existing = null
+
+            fetchError != null -> Box(Modifier.fillMaxSize().padding(28.dp), Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(fetchError!!, color = NexaRed, fontSize = 13.sp, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Tap to retry",
+                        color = NexaGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { reload() }
+                    )
+                }
             }
-            else -> StatusView("pending", info = existing?.nidNumber)
+
+            // ✅ Only show form when there's NO KYC at all
+            effectiveStatus == STATUS_NONE -> KycForm(repo, scope) { reload() }
+
+            // ⏳ Pending — no resubmit
+            effectiveStatus == STATUS_PENDING -> StatusView(
+                status = "pending",
+                info = kyc?.nidNumber
+            )
+
+            // ✅ Approved
+            effectiveStatus == STATUS_APPROVED -> StatusView(
+                status = "approved",
+                info = kyc?.nidNumber
+            )
+
+            // ❌ Rejected — show reason + resubmit
+            effectiveStatus == STATUS_REJECTED -> StatusView(
+                status = "rejected",
+                note = kyc?.adminNote,
+                info = kyc?.nidNumber,
+                onRetry = {
+                    // Clear local state to show form again
+                    kyc = null
+                    userStatus = STATUS_NONE
+                }
+            )
         }
     }
 }
 
 @Composable
 private fun KycForm(
-    prefs: Prefs,
     repo: Repository,
     scope: kotlinx.coroutines.CoroutineScope,
     onSubmitted: () -> Unit
@@ -136,7 +197,6 @@ private fun KycForm(
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
 
-        // Hero
         Column(
             Modifier.fillMaxWidth().padding(vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -163,7 +223,6 @@ private fun KycForm(
             )
         }
 
-        // Info card
         Box(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                 .background(NexaTeal.copy(alpha = 0.07f))
@@ -179,7 +238,6 @@ private fun KycForm(
 
         Spacer(Modifier.height(24.dp))
 
-        // NID Number
         Text(
             "NID NUMBER",
             color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold,
@@ -286,7 +344,6 @@ private fun ImageSlot(
 ) {
     val ctx = LocalContext.current
 
-    // Decode once (composable-safe)
     val bmp = remember(uri) {
         if (uri == null) null
         else try {
@@ -360,16 +417,33 @@ private fun ImageSlot(
 }
 
 @Composable
-private fun StatusView(status: String, note: String? = null, info: String? = null, onRetry: (() -> Unit)? = null) {
+private fun StatusView(
+    status: String,
+    note: String? = null,
+    info: String? = null,
+    onRetry: (() -> Unit)? = null
+) {
     Column(
-        Modifier.fillMaxSize().padding(28.dp),
+        Modifier.fillMaxSize().padding(28.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         val (icon, tint, title, subtitle) = when (status) {
-            "approved" -> Quadruple(Icons.Filled.VerifiedUser, NexaGreen, "You're Verified!", "Your identity has been confirmed.")
-            "rejected" -> Quadruple(Icons.Filled.Error, NexaRed, "Verification Failed", note ?: "Documents could not be verified.")
-            else -> Quadruple(Icons.Filled.HourglassEmpty, NexaTeal, "Under Review", "We'll review your submission within 24–48 hours.")
+            "approved" -> Quadruple(
+                Icons.Filled.VerifiedUser, NexaGreen,
+                "You're Verified!",
+                "Your identity has been confirmed.\nAll deposit & withdrawal features are now unlocked."
+            )
+            "rejected" -> Quadruple(
+                Icons.Filled.Error, NexaRed,
+                "Verification Failed",
+                "Your documents could not be verified.\nCheck admin note below and resubmit."
+            )
+            else -> Quadruple(
+                Icons.Filled.HourglassEmpty, NexaTeal,
+                "Under Review",
+                "We'll review your submission within 24–48 hours.\nYou'll be notified once approved."
+            )
         }
 
         Box(
@@ -386,8 +460,26 @@ private fun StatusView(status: String, note: String? = null, info: String? = nul
         Text(subtitle, color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center, lineHeight = 19.sp)
 
-        if (info != null) {
+        // Admin rejection note
+        if (status == "rejected" && !note.isNullOrBlank()) {
             Spacer(Modifier.height(20.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    .background(NexaRed.copy(alpha = 0.08f))
+                    .border(1.dp, NexaRed.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                    .padding(16.dp)
+            ) {
+                Column {
+                    Text("⚠ ADMIN NOTE", color = NexaRed, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.7.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text(note, color = NexaText, fontSize = 13.sp, fontWeight = FontWeight.Medium, lineHeight = 20.sp)
+                }
+            }
+        }
+
+        // NID info
+        if (info != null) {
+            Spacer(Modifier.height(16.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                     .background(NexaSurface)
@@ -402,15 +494,15 @@ private fun StatusView(status: String, note: String? = null, info: String? = nul
         }
 
         if (status == "rejected" && onRetry != null) {
-            Spacer(Modifier.height(24.dp))
-            GradientButton("Try Again", onClick = onRetry)
+            Spacer(Modifier.height(26.dp))
+            GradientButton("Resubmit KYC", onClick = onRetry)
         }
+
+        Spacer(Modifier.height(30.dp))
     }
 }
 
 private data class Quadruple<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
-
-// Destructuring helper
 private operator fun <A, B, C, D> Quadruple<A, B, C, D>.component1() = a
 private operator fun <A, B, C, D> Quadruple<A, B, C, D>.component2() = b
 private operator fun <A, B, C, D> Quadruple<A, B, C, D>.component3() = c
