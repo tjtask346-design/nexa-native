@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -35,25 +37,24 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
-import com.nexa.app.data.Prefs
+import com.nexa.app.R
 import com.nexa.app.data.Repository
 import com.nexa.app.data.User
 import com.nexa.app.ui.components.NexaIconButton
 import com.nexa.app.ui.theme.*
 
-/* Crypto options */
 data class CryptoOption(
-    val key: String,          // "usdt" | "ltc" | "nexa"
+    val key: String,
     val name: String,
     val network: String,
     val color: Color,
-    val mark: String
+    val imageRes: Int
 )
 
 private val OPTIONS = listOf(
-    CryptoOption("usdt", "USDT", "BEP20 · BSC", Color(0xFF26A17B), "₮"),
-    CryptoOption("ltc",  "Litecoin", "LTC", Color(0xFF345D9D), "Ł"),
-    CryptoOption("nexa", "Nexa User", "Instant · 0% fee", NexaGreen, "N")
+    CryptoOption("usdt", "USDT", "BEP20 · BSC", Color(0xFF26A17B), R.drawable.usdt),
+    CryptoOption("ltc",  "Litecoin", "LTC", Color(0xFF345D9D), R.drawable.ltc),
+    CryptoOption("nexa", "Nexa User", "Instant · 0% fee", NexaGreen, R.drawable.nexa_logo)
 )
 
 @Composable
@@ -71,8 +72,14 @@ fun DepositScreen(nav: NavController, repo: Repository) {
         loading = false
     }
 
+    fun addressFor(key: String): String? = when (key) {
+        "usdt" -> user?.wallets?.bscAddress?.takeIf { it.isNotBlank() }
+        "ltc"  -> user?.ltcAddress?.takeIf { it.isNotBlank() }
+        "nexa" -> user?.handle
+        else   -> null
+    }
+
     Column(Modifier.fillMaxSize().background(NexaBg)) {
-        // Header
         Row(
             Modifier.fillMaxWidth().padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -93,34 +100,36 @@ fun DepositScreen(nav: NavController, repo: Repository) {
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)
         ) {
-            if (loading) {
-                Box(Modifier.fillMaxWidth().padding(60.dp), contentAlignment = Alignment.Center) {
+            when {
+                loading -> Box(Modifier.fillMaxWidth().padding(60.dp), contentAlignment = Alignment.Center) {
                     Text("Loading…", color = NexaMuted, fontSize = 14.sp)
                 }
-            }
-            // KYC guard
-            else if (user == null || (user?.wallets?.bscAddress.isNullOrBlank() && user?.ltcAddress.isNullOrBlank())) {
-                KycRequiredCard(nav)
-            }
-            else if (selected == null) {
-                CryptoPicker(OPTIONS) { key -> selected = key }
-            }
-            else {
-                val opt = OPTIONS.first { it.key == selected }
-                val address = when (selected) {
-                    "usdt" -> user?.wallets?.bscAddress
-                    "ltc"  -> user?.ltcAddress
-                    else   -> null
-                }
-                AddressView(
-                    option = opt,
-                    address = address ?: user?.handle ?: "@user",
-                    onBack = { selected = null },
-                    onCopy = {
-                        clipboard.setText(AnnotatedString(address ?: user?.handle ?: ""))
-                        Toast.makeText(ctx, "Address copied", Toast.LENGTH_SHORT).show()
+
+                user == null -> KycRequiredCard(nav)
+
+                user?.wallets?.bscAddress.isNullOrBlank() &&
+                user?.ltcAddress.isNullOrBlank() -> KycRequiredCard(nav)
+
+                selected == null -> CryptoPicker(OPTIONS) { key -> selected = key }
+
+                else -> {
+                    val opt = OPTIONS.first { it.key == selected }
+                    val address = addressFor(selected!!)
+
+                    if (address.isNullOrBlank()) {
+                        MissingAddressView(opt) { selected = null }
+                    } else {
+                        AddressView(
+                            option = opt,
+                            address = address,
+                            onBack = { selected = null },
+                            onCopy = {
+                                clipboard.setText(AnnotatedString(address))
+                                Toast.makeText(ctx, "Address copied", Toast.LENGTH_SHORT).show()
+                            }
+                        )
                     }
-                )
+                }
             }
 
             Spacer(Modifier.height(30.dp))
@@ -198,7 +207,11 @@ private fun CryptoPicker(options: List<CryptoOption>, onPick: (String) -> Unit) 
                             .background(opt.color.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(opt.mark, color = opt.color, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
+                        Image(
+                            painter = painterResource(opt.imageRes),
+                            contentDescription = opt.name,
+                            modifier = Modifier.size(30.dp)
+                        )
                     }
                     Column(Modifier.weight(1f)) {
                         Text(opt.name, color = NexaText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -206,6 +219,61 @@ private fun CryptoPicker(options: List<CryptoOption>, onPick: (String) -> Unit) 
                     }
                     Text("›", color = NexaDim, fontSize = 22.sp)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissingAddressView(option: CryptoOption, onBack: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "← Back",
+                color = NexaTeal, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onBack() }
+            )
+        }
+
+        Box(
+            Modifier.size(56.dp).clip(RoundedCornerShape(18.dp))
+                .background(option.color.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(option.imageRes),
+                contentDescription = option.name,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        Text("${option.name} address", color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+        Spacer(Modifier.height(14.dp))
+
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                .background(NexaSurface)
+                .border(1.dp, NexaRed.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                .padding(20.dp)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Lock, null, tint = NexaRed, modifier = Modifier.size(32.dp))
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Address not generated yet",
+                    color = NexaText, fontWeight = FontWeight.Bold, fontSize = 14.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Your ${option.name} address will be generated after your KYC is approved by an admin.",
+                    color = NexaMuted, fontSize = 12.sp, textAlign = TextAlign.Center, lineHeight = 18.sp
+                )
             }
         }
     }
@@ -240,7 +308,11 @@ private fun AddressView(
                 .background(option.color.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(option.mark, color = option.color, fontWeight = FontWeight.ExtraBold, fontSize = 26.sp)
+            Image(
+                painter = painterResource(option.imageRes),
+                contentDescription = option.name,
+                modifier = Modifier.size(36.dp)
+            )
         }
 
         Spacer(Modifier.height(14.dp))
@@ -260,14 +332,13 @@ private fun AddressView(
         Spacer(Modifier.height(22.dp))
 
         if (option.key == "nexa") {
-            // Nexa user — no QR, share handle
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
                     .background(NexaSurface)
                     .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(20.dp))
                     .padding(20.dp)
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                     Text("Your Nexa Handle", color = NexaMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(8.dp))
                     Text(address, color = NexaText, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
@@ -309,7 +380,6 @@ private fun AddressView(
 
         Spacer(Modifier.height(20.dp))
 
-        // Warning
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                 .background(NexaTeal.copy(alpha = 0.07f))
