@@ -35,6 +35,7 @@ fun NexaTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = NexaColors,
         shapes = NexaShapes,
+        typography = NexaTypography,
         content = content
     )
 }
