@@ -5,12 +5,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -26,7 +31,7 @@ import com.nexa.app.ui.components.GradientButton
 import com.nexa.app.ui.components.NexaTextField
 import com.nexa.app.ui.theme.*
 
-/* ─── Shared header for auth screens ─── */
+/* ═══ Shared header for auth screens ═══ */
 @Composable
 private fun AuthHeader(subtitle: String) {
     Column(
@@ -104,7 +109,12 @@ fun LoginScreen(nav: NavController, prefs: Prefs) {
             placeholder = "you@example.com",
             keyboardType = KeyboardType.Email,
             leadingIcon = {
-                Text("✉", color = NexaDim, fontSize = 15.sp)
+                Icon(
+                    Icons.Filled.Email,
+                    contentDescription = null,
+                    tint = NexaDim,
+                    modifier = Modifier.size(18.dp)
+                )
             },
             modifier = Modifier.fadeUp(280)
         )
@@ -142,7 +152,6 @@ fun LoginScreen(nav: NavController, prefs: Prefs) {
 
         Spacer(Modifier.weight(1f))
 
-        // Trust chips
         Row(
             Modifier.fillMaxWidth().padding(bottom = 40.dp).fadeUp(460),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
@@ -188,7 +197,14 @@ fun SignupScreen(nav: NavController, prefs: Prefs) {
             onChange = { email = it },
             placeholder = "you@example.com",
             keyboardType = KeyboardType.Email,
-            leadingIcon = { Text("✉", color = NexaDim, fontSize = 15.sp) },
+            leadingIcon = {
+                Icon(
+                    Icons.Filled.Email,
+                    contentDescription = null,
+                    tint = NexaDim,
+                    modifier = Modifier.size(18.dp)
+                )
+            },
             modifier = Modifier.fadeUp(280)
         )
 
@@ -198,7 +214,14 @@ fun SignupScreen(nav: NavController, prefs: Prefs) {
             value = name,
             onChange = { name = it },
             placeholder = "Full name",
-            leadingIcon = { Text("👤", color = NexaDim, fontSize = 15.sp) },
+            leadingIcon = {
+                Icon(
+                    Icons.Filled.Person,
+                    contentDescription = null,
+                    tint = NexaDim,
+                    modifier = Modifier.size(18.dp)
+                )
+            },
             modifier = Modifier.fadeUp(320)
         )
 
@@ -249,7 +272,7 @@ fun SignupScreen(nav: NavController, prefs: Prefs) {
     }
 }
 
-/* ─── Small helpers ─── */
+/* ═══ Small helpers ═══ */
 @Composable
 private fun TrustChip(emoji: String, text: String) {
     Row(
@@ -265,7 +288,6 @@ private fun TrustChip(emoji: String, text: String) {
     }
 }
 
-/* clickable with no ripple */
 @Composable
 private fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier {
     val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
