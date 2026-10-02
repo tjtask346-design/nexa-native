@@ -56,13 +56,16 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Ensure Firebase is initialized
         try {
             if (FirebaseApp.getApps(this).isEmpty()) {
                 FirebaseApp.initializeApp(this)
+                Log.d("NEXA_FCM", "Firebase App initialized manually")
+            } else {
+                Log.d("NEXA_FCM", "Firebase App already exists")
             }
         } catch (e: Exception) {
-            Log.e("NEXA_FCM", "Firebase init failed", e)
+            Log.e("NEXA_FCM", "Firebase init FAILED", e)
+            Toast.makeText(this, "Firebase init failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
 
         prefs = Prefs(applicationContext)
@@ -103,110 +106,81 @@ class MainActivity : AppCompatActivity() {
 }
 
 // ═══════════════════════════════════════════════
-// FCM TOKEN SYNC — with on-screen toasts for debugging
+// FCM TOKEN SYNC — DEEP diagnostic logging
 // ═══════════════════════════════════════════════
 @Composable
 fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
     val context = LocalContext.current
 
-    // ─── Step 1: Fetch FCM token (once) ───
+    // ─── Fetch FCM token with FULL exception chain ───
     LaunchedEffect(Unit) {
-        if (prefs.fcmToken.isNullOrBlank()) {
-            try {
+        if (!prefs.fcmToken.isNullOrBlank()) {
+            Log.d("NEXA_FCM", "Using cached token")
+            return@LaunchedEffect
+        }
+
+        try {
+            Log.d("NEXA_FCM", "Requesting FCM token...")
+            val token = com.google.android.gms.tasks.Tasks.await(
                 FirebaseMessaging.getInstance().token
-                    .addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            val token = task.result
-                            if (!token.isNullOrBlank()) {
-                                prefs.fcmToken = token
-                                Log.d("NEXA_FCM", "Token: ${token.take(20)}...")
-                                Toast.makeText(
-                                    context,
-                                    "FCM token received ✓",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            } else {
-                                Log.e("NEXA_FCM", "Token blank")
-                                Toast.makeText(
-                                    context,
-                                    "FCM token empty",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        } else {
-                            val msg = task.exception?.message ?: "unknown"
-                            Log.e("NEXA_FCM", "Fetch failed: $msg", task.exception)
-                            Toast.makeText(
-                                context,
-                                "FCM fetch failed: $msg",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-            } catch (e: Exception) {
-                Log.e("NEXA_FCM", "Exception fetching token", e)
-                Toast.makeText(
-                    context,
-                    "FCM exception: ${e.message}",
-                    Toast.LENGTH_LONG
-                ).show()
+            )
+            if (!token.isNullOrBlank()) {
+                prefs.fcmToken = token
+                prefs.fcmTokenSynced = false
+                Log.d("NEXA_FCM", "SUCCESS: token = ${token.take(30)}...")
+                Toast.makeText(context, "FCM token OK ✓", Toast.LENGTH_SHORT).show()
+            } else {
+                Log.e("NEXA_FCM", "Token is blank")
+                Toast.makeText(context, "FCM token empty", Toast.LENGTH_LONG).show()
             }
-        } else {
-            Toast.makeText(context, "FCM token (cached) ✓", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            // ═══ Walk through the ENTIRE exception chain ═══
+            val messages = mutableListOf<String>()
+            var current: Throwable? = e
+            while (current != null) {
+                messages.add("${current.javaClass.simpleName}: ${current.message}")
+                current = current.cause
+            }
+            val fullMsg = messages.joinToString(" → ")
+            Log.e("NEXA_FCM", "FULL ERROR CHAIN: $fullMsg", e)
+
+            // Show FULL message on screen
+            Toast.makeText(
+                context,
+                "FCM ERR: $fullMsg",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
-    // ─── Step 2: Sync loop (90 attempts = 3 min) ───
+    // ─── Sync to backend ───
     LaunchedEffect(Unit) {
         var attempt = 0
-        var lastError = ""
-
         while (attempt < 90) {
             try {
                 val auth = prefs.token
                 val fcm = prefs.fcmToken
                 val synced = prefs.fcmTokenSynced
 
-                Log.d("NEXA_FCM", "Attempt $attempt: auth=${!auth.isNullOrBlank()}, fcm=${!fcm.isNullOrBlank()}, synced=$synced")
-
                 if (!auth.isNullOrBlank() && !fcm.isNullOrBlank() && !synced) {
                     val res = repo.saveFcmToken(fcm)
                     if (res.isSuccess && res.getOrNull()?.success == true) {
                         prefs.fcmTokenSynced = true
-                        Log.d("NEXA_FCM", "Synced ✓")
-                        Toast.makeText(
-                            context,
-                            "FCM synced to server ✓",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        Log.d("NEXA_FCM", "Synced to backend ✓")
+                        Toast.makeText(context, "FCM synced ✓", Toast.LENGTH_SHORT).show()
                         return@LaunchedEffect
                     } else {
-                        lastError = res.exceptionOrNull()?.message ?: "unknown"
-                        Log.e("NEXA_FCM", "Sync failed: $lastError")
+                        val err = res.exceptionOrNull()?.message ?: "unknown"
+                        Log.e("NEXA_FCM", "Sync error: $err")
                         if (attempt == 3) {
-                            Toast.makeText(
-                                context,
-                                "Sync fail: $lastError",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            Toast.makeText(context, "Sync: $err", Toast.LENGTH_LONG).show()
                         }
                     }
                 }
-            } catch (e: Exception) {
-                lastError = e.message ?: "exception"
-                Log.e("NEXA_FCM", "Loop exception", e)
-            }
+            } catch (_: Exception) { }
 
             delay(2000)
             attempt++
-        }
-
-        if (attempt >= 90 && !prefs.fcmTokenSynced) {
-            Toast.makeText(
-                context,
-                "FCM sync timeout. Last: $lastError",
-                Toast.LENGTH_LONG
-            ).show()
         }
     }
 }
