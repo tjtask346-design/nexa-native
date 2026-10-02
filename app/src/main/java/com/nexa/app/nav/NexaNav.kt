@@ -10,7 +10,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -47,7 +47,7 @@ object Routes {
     const val SEND = "send"
     const val SUCCESS = "success"
     const val KYC = "kyc"
-    const val NOTIFICATIONS = "notifications"   // ← নতুন যোগ
+    const val NOTIFICATIONS = "notifications"
 }
 
 private val NexaEase = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
@@ -72,13 +72,10 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                         0.00f to NexaGreen.copy(alpha = 0.22f),
                         0.68f to Color.Transparent
                     ),
-                    center = gC,
-                    radius = gR
+                    center = gC, radius = gR
                 ),
-                radius = gR,
-                center = gC
+                radius = gR, center = gC
             )
-
             val tC = Offset(size.width, size.height * 0.14f)
             val tR = size.width * 0.75f
             drawCircle(
@@ -87,11 +84,9 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                         0.00f to NexaTeal.copy(alpha = 0.16f),
                         0.70f to Color.Transparent
                     ),
-                    center = tC,
-                    radius = tR
+                    center = tC, radius = tR
                 ),
-                radius = tR,
-                center = tC
+                radius = tR, center = tC
             )
         }
 
@@ -114,10 +109,48 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                 ) + fadeOut(animationSpec = tween(200))
             }
         ) {
+
+            // ═══════════════════════════════════════════════
+            // SPLASH — validates session before navigating
+            // ═══════════════════════════════════════════════
             composable(Routes.SPLASH) {
+                var splashTimePassed by remember { mutableStateOf(false) }
+                var validationDone by remember { mutableStateOf(false) }
+                var destination by remember { mutableStateOf<String?>(null) }
+
+                // Validate token with backend
+                LaunchedEffect(Unit) {
+                    val savedToken = prefs.token
+
+                    if (!savedToken.isNullOrBlank()) {
+                        // Ask backend: is this session still valid?
+                        val res = repo.me()
+
+                        if (res.isSuccess && res.getOrNull()?.success == true) {
+                            // Session valid → go to PIN
+                            destination = Routes.PIN
+                        } else {
+                            // User deleted OR token expired → force logout
+                            try { repo.clearSession() } catch (_: Exception) { }
+                            destination = Routes.LOGIN
+                        }
+                    } else {
+                        destination = Routes.LOGIN
+                    }
+                    validationDone = true
+                }
+
+                // Navigate only after BOTH splash delay AND validation finish
+                LaunchedEffect(splashTimePassed, validationDone, destination) {
+                    if (splashTimePassed && validationDone && destination != null) {
+                        nav.navigate(destination!!) {
+                            popUpTo(Routes.SPLASH) { inclusive = true }
+                        }
+                    }
+                }
+
                 SplashScreen {
-                    val next = if (prefs.token != null) Routes.PIN else Routes.LOGIN
-                    nav.navigate(next) { popUpTo(Routes.SPLASH) { inclusive = true } }
+                    splashTimePassed = true
                 }
             }
 
@@ -131,7 +164,7 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
             composable(Routes.RESET_PIN)     { ResetPinScreen(nav, prefs, repo) }
 
             composable(Routes.HOME)          { HomeScreen(nav, prefs, repo) }
-            composable(Routes.NOTIFICATIONS) { NotificationsScreen(nav, repo) }   // ← নতুন যোগ
+            composable(Routes.NOTIFICATIONS) { NotificationsScreen(nav, repo) }
             composable(Routes.HISTORY)       { HistoryScreen(nav, prefs, repo) }
             composable(Routes.PROFILE)       { ProfileScreen(nav, prefs) }
 
