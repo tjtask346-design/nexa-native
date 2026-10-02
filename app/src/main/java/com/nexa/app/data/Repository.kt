@@ -57,7 +57,7 @@ class Repository(private val prefs: Prefs) {
         withContext(Dispatchers.IO) { wrap { api.cashoutRequest(authHeader(), CashoutRequest(amount, methodNumber)) } }
     suspend fun sendMoney(receiverUid: String, amount: Double, pin: String): Result<AuthResponse> =
         withContext(Dispatchers.IO) { wrap { api.sendMoney(authHeader(), SendMoneyRequest(receiverUid, amount, pin)) } }
-        suspend fun withdrawCrypto(toAddress: String, amount: Double): Result<SimpleResponse> =
+    suspend fun withdrawCrypto(toAddress: String, amount: Double): Result<SimpleResponse> =
         withContext(Dispatchers.IO) {
             wrap { api.withdrawOnchain(authHeader(), WithdrawOnchainRequest(toAddress, amount)) }
         }
@@ -65,6 +65,22 @@ class Repository(private val prefs: Prefs) {
     suspend fun submitKyc(nid: String, front: String, back: String, selfie: String): Result<SimpleResponse> =
         withContext(Dispatchers.IO) { wrap { api.submitKyc(authHeader(), KycSubmitRequest(nid, front, back, selfie)) } }
     suspend fun myKyc(): Result<KycListResponse> = withContext(Dispatchers.IO) { wrap { api.myKyc(authHeader()) } }
+
+    // ═══ FCM ═══
+    suspend fun saveFcmToken(fcmToken: String): Result<SimpleResponse> =
+        withContext(Dispatchers.IO) {
+            wrap { api.saveFcmToken(authHeader(), FcmTokenRequest(fcmToken)) }
+        }
+
+    // ═══ Notifications ═══
+    suspend fun getNotifications(): Result<NotificationsResponse> =
+        withContext(Dispatchers.IO) { wrap { api.getNotifications(authHeader()) } }
+    suspend fun markNotificationRead(id: String): Result<SimpleResponse> =
+        withContext(Dispatchers.IO) { wrap { api.markNotificationRead(authHeader(), id) } }
+    suspend fun markAllNotificationsRead(): Result<SimpleResponse> =
+        withContext(Dispatchers.IO) { wrap { api.markAllNotificationsRead(authHeader()) } }
+    suspend fun deleteNotification(id: String): Result<SimpleResponse> =
+        withContext(Dispatchers.IO) { wrap { api.deleteNotification(authHeader(), id) } }
 
     fun saveSession(token: String?, user: User?) {
         prefs.token = token
