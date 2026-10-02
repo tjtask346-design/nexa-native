@@ -11,6 +11,8 @@ import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -34,13 +36,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.nexa.app.data.Prefs
 import com.nexa.app.data.Repository
 import com.nexa.app.nav.NexaNav
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.tasks.await
 
 class MainActivity : AppCompatActivity() {
 
@@ -53,6 +55,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Ensure Firebase is initialized
+        try {
+            if (FirebaseApp.getApps(this).isEmpty()) {
+                FirebaseApp.initializeApp(this)
+            }
+        } catch (e: Exception) {
+            Log.e("NEXA_FCM", "Firebase init failed", e)
+        }
+
         prefs = Prefs(applicationContext)
         repo = Repository(prefs)
 
@@ -91,43 +103,110 @@ class MainActivity : AppCompatActivity() {
 }
 
 // ═══════════════════════════════════════════════
-// FCM TOKEN SYNC
+// FCM TOKEN SYNC — with on-screen toasts for debugging
 // ═══════════════════════════════════════════════
 @Composable
 fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
+    val context = LocalContext.current
 
-    // Step 1: Fetch FCM token
+    // ─── Step 1: Fetch FCM token (once) ───
     LaunchedEffect(Unit) {
-        try {
-            val token = FirebaseMessaging.getInstance().token.await()
-            if (!token.isNullOrBlank()) {
-                prefs.fcmToken = token
+        if (prefs.fcmToken.isNullOrBlank()) {
+            try {
+                FirebaseMessaging.getInstance().token
+                    .addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            val token = task.result
+                            if (!token.isNullOrBlank()) {
+                                prefs.fcmToken = token
+                                Log.d("NEXA_FCM", "Token: ${token.take(20)}...")
+                                Toast.makeText(
+                                    context,
+                                    "FCM token received ✓",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                Log.e("NEXA_FCM", "Token blank")
+                                Toast.makeText(
+                                    context,
+                                    "FCM token empty",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        } else {
+                            val msg = task.exception?.message ?: "unknown"
+                            Log.e("NEXA_FCM", "Fetch failed: $msg", task.exception)
+                            Toast.makeText(
+                                context,
+                                "FCM fetch failed: $msg",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+            } catch (e: Exception) {
+                Log.e("NEXA_FCM", "Exception fetching token", e)
+                Toast.makeText(
+                    context,
+                    "FCM exception: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
             }
-        } catch (_: Exception) { }
+        } else {
+            Toast.makeText(context, "FCM token (cached) ✓", Toast.LENGTH_SHORT).show()
+        }
     }
 
-    // Step 2: Sync to backend continuously until success
+    // ─── Step 2: Sync loop (90 attempts = 3 min) ───
     LaunchedEffect(Unit) {
-        var attempts = 0
-        while (attempts < 60) {
-            try {
-                val authToken = prefs.token
-                val fcmToken = prefs.fcmToken
+        var attempt = 0
+        var lastError = ""
 
-                if (!authToken.isNullOrBlank() &&
-                    !fcmToken.isNullOrBlank() &&
-                    !prefs.fcmTokenSynced
-                ) {
-                    val res = repo.saveFcmToken(fcmToken)
+        while (attempt < 90) {
+            try {
+                val auth = prefs.token
+                val fcm = prefs.fcmToken
+                val synced = prefs.fcmTokenSynced
+
+                Log.d("NEXA_FCM", "Attempt $attempt: auth=${!auth.isNullOrBlank()}, fcm=${!fcm.isNullOrBlank()}, synced=$synced")
+
+                if (!auth.isNullOrBlank() && !fcm.isNullOrBlank() && !synced) {
+                    val res = repo.saveFcmToken(fcm)
                     if (res.isSuccess && res.getOrNull()?.success == true) {
                         prefs.fcmTokenSynced = true
-                        break
+                        Log.d("NEXA_FCM", "Synced ✓")
+                        Toast.makeText(
+                            context,
+                            "FCM synced to server ✓",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@LaunchedEffect
+                    } else {
+                        lastError = res.exceptionOrNull()?.message ?: "unknown"
+                        Log.e("NEXA_FCM", "Sync failed: $lastError")
+                        if (attempt == 3) {
+                            Toast.makeText(
+                                context,
+                                "Sync fail: $lastError",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     }
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                lastError = e.message ?: "exception"
+                Log.e("NEXA_FCM", "Loop exception", e)
+            }
 
             delay(2000)
-            attempts++
+            attempt++
+        }
+
+        if (attempt >= 90 && !prefs.fcmTokenSynced) {
+            Toast.makeText(
+                context,
+                "FCM sync timeout. Last: $lastError",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 }
