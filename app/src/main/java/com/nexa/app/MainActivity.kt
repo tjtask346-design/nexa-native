@@ -20,18 +20,23 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -62,7 +67,6 @@ class MainActivity : AppCompatActivity() {
         try {
             if (FirebaseApp.getApps(this).isEmpty()) {
                 FirebaseApp.initializeApp(this)
-                Log.d("NEXA_FCM", "Firebase App initialized")
             }
         } catch (e: Exception) {
             Log.e("NEXA_FCM", "Firebase init FAILED", e)
@@ -106,13 +110,14 @@ class MainActivity : AppCompatActivity() {
 }
 
 // ═══════════════════════════════════════════════
-// FCM TOKEN SYNC — Background thread to avoid blocking
+// FCM TOKEN SYNC — shows FULL error in dialog
 // ═══════════════════════════════════════════════
 @Composable
 fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
     val context = LocalContext.current
+    var errorDialogText by remember { mutableStateOf<String?>(null) }
 
-    // ─── Fetch FCM token on Background thread ───
+    // ─── Fetch FCM token ───
     LaunchedEffect(Unit) {
         if (!prefs.fcmToken.isNullOrBlank()) {
             Log.d("NEXA_FCM", "Using cached token")
@@ -131,19 +136,62 @@ fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
                 Toast.makeText(context, "FCM token OK ✓", Toast.LENGTH_SHORT).show()
             } else {
                 Log.e("NEXA_FCM", "Token blank")
-                Toast.makeText(context, "FCM token empty", Toast.LENGTH_LONG).show()
+                errorDialogText = "Token empty"
             }
         } catch (e: Exception) {
-            val messages = mutableListOf<String>()
+            // Walk through ENTIRE exception chain — collect classes + messages
+            val sb = StringBuilder()
             var current: Throwable? = e
-            while (current != null) {
-                messages.add("${current.javaClass.simpleName}: ${current.message}")
+            var depth = 0
+            while (current != null && depth < 10) {
+                sb.append("[$depth] ${current.javaClass.name}\n")
+                sb.append("    Message: ${current.message ?: "(null)"}\n\n")
                 current = current.cause
+                depth++
             }
-            val fullMsg = messages.joinToString(" → ")
-            Log.e("NEXA_FCM", "FULL CHAIN: $fullMsg", e)
-            Toast.makeText(context, "FCM ERR: $fullMsg", Toast.LENGTH_LONG).show()
+
+            val fullText = sb.toString()
+            Log.e("NEXA_FCM", "FULL CHAIN:\n$fullText", e)
+            errorDialogText = fullText
         }
+    }
+
+    // ─── Show error in AlertDialog if set ───
+    errorDialogText?.let { text ->
+        AlertDialog(
+            onDismissRequest = { errorDialogText = null },
+            containerColor = NexaSurface,
+            titleContentColor = NexaText,
+            textContentColor = NexaMuted,
+            title = {
+                Text(
+                    "FCM Error",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = text,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = NexaText,
+                        lineHeight = 15.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { errorDialogText = null }) {
+                    Text("Close", color = NexaGreen, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
     }
 
     // ─── Sync to backend ───
@@ -162,12 +210,6 @@ fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
                         Log.d("NEXA_FCM", "Synced ✓")
                         Toast.makeText(context, "FCM synced ✓", Toast.LENGTH_SHORT).show()
                         return@LaunchedEffect
-                    } else {
-                        val err = res.exceptionOrNull()?.message ?: "unknown"
-                        Log.e("NEXA_FCM", "Sync error: $err")
-                        if (attempt == 3) {
-                            Toast.makeText(context, "Sync: $err", Toast.LENGTH_LONG).show()
-                        }
                     }
                 }
             } catch (_: Exception) { }
