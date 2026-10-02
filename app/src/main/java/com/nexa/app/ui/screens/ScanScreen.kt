@@ -4,8 +4,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,28 +25,23 @@ import androidx.navigation.NavController
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.nexa.app.data.Prefs
-import com.nexa.app.ui.components.GradientButton
 import com.nexa.app.ui.components.NexaIconButton
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun ScanScreen(nav: NavController, prefs: Prefs) {
     val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
     var lastResult by remember { mutableStateOf<String?>(null) }
-    var autoLaunched by remember { mutableStateOf(false) }
 
     val launcher = rememberLauncherForActivityResult(ScanContract()) { result ->
         if (result.contents != null) {
             lastResult = result.contents
             Toast.makeText(ctx, "Scanned: ${result.contents.take(40)}", Toast.LENGTH_LONG).show()
-            scope.launch {
-                delay(600)
-                nav.popBackStack()
-            }
+            // TODO: parse nexa://pay?... and navigate to Send screen
         }
+        // Always pop back to previous screen (Home), whether scanned or canceled
+        nav.popBackStack()
     }
 
     fun launchScanner() {
@@ -62,13 +55,10 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
         launcher.launch(options)
     }
 
-    // ⚡ Auto-launch on first appear
+    // ⚡ Instant auto-launch (100ms — barely visible)
     LaunchedEffect(Unit) {
-        if (!autoLaunched) {
-            autoLaunched = true
-            delay(350)
-            launchScanner()
-        }
+        delay(100)
+        launchScanner()
     }
 
     Column(Modifier.fillMaxSize().background(NexaBg)) {
@@ -94,23 +84,17 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // ⚡ Big icon — TAP to launch scanner
             Box(
                 Modifier
                     .size(220.dp)
                     .clip(RoundedCornerShape(28.dp))
                     .background(Brush.radialGradient(listOf(NexaGreen.copy(alpha = 0.10f), Color.Transparent)))
-                    .border(2.dp, NexaGreen.copy(alpha = 0.35f), RoundedCornerShape(28.dp))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { launchScanner() }
-                    ),
+                    .border(2.dp, NexaGreen.copy(alpha = 0.35f), RoundedCornerShape(28.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Filled.QrCodeScanner,
-                    contentDescription = "Open Scanner",
+                    contentDescription = null,
                     tint = NexaGreen,
                     modifier = Modifier.size(96.dp)
                 )
@@ -118,7 +102,7 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
 
             Spacer(Modifier.height(28.dp))
             Text(
-                "Scan a Nexa QR code",
+                "Opening camera…",
                 color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp,
                 letterSpacing = (-0.4).sp
             )
@@ -127,30 +111,6 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
                 "Point your camera at any Nexa QR to\nsend money instantly — 0% fee",
                 color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center, lineHeight = 19.sp
-            )
-
-            if (lastResult != null) {
-                Spacer(Modifier.height(20.dp))
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(NexaSurface)
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        "Last scan: $lastResult",
-                        color = NexaTeal, fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-
-        Box(Modifier.padding(24.dp)) {
-            GradientButton(
-                text = "Open Scanner",
-                onClick = { launchScanner() }
             )
         }
     }
