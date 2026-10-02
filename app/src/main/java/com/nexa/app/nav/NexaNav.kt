@@ -47,6 +47,7 @@ object Routes {
     const val SEND = "send"
     const val SUCCESS = "success"
     const val KYC = "kyc"
+    const val NOTIFICATIONS = "notifications"   // ← নতুন যোগ
 }
 
 private val NexaEase = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
@@ -56,17 +57,13 @@ private const val ANIM_MS = 320
 fun NexaNav(prefs: Prefs, repo: Repository) {
     val nav = rememberNavController()
 
-    // ══════════════════════════════════════════════════════
-    // GLOBAL BACKGROUND — glow stays behind ALL screens
-    // ══════════════════════════════════════════════════════
     Box(
         Modifier
             .fillMaxSize()
             .background(NexaBg)
     ) {
-        // Ambient glow (HTML: .phone::before + .phone::after)
+        // Ambient glow
         Canvas(Modifier.fillMaxSize()) {
-            // Green — top-left, alpha .22, fade at 68%
             val gC = Offset(0f, 0f)
             val gR = size.width * 0.85f
             drawCircle(
@@ -82,7 +79,6 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                 center = gC
             )
 
-            // Teal — top-right, alpha .16, fade at 70%
             val tC = Offset(size.width, size.height * 0.14f)
             val tR = size.width * 0.75f
             drawCircle(
@@ -99,7 +95,6 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
             )
         }
 
-        // NavHost — draws on top of glow
         NavHost(
             navController = nav,
             startDestination = Routes.SPLASH,
@@ -126,25 +121,26 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                 }
             }
 
-            composable(Routes.LOGIN)        { LoginScreen(nav, prefs) }
-            composable(Routes.SIGNUP)       { SignupScreen(nav, prefs) }
-            composable(Routes.PIN)          { PinScreen(nav, prefs, repo) }
-            composable(Routes.VERIFY_EMAIL) { VerifyEmailScreen(nav, prefs, repo) }
-            composable(Routes.FORGOT_PIN)   { ForgotPinScreen(nav, prefs) }
-            composable(Routes.SETUP_TOTP)   { SetupTotpScreen(nav, prefs, repo) }
-            composable(Routes.VERIFY_TOTP)  { VerifyTotpScreen(nav, prefs, repo) }
-            composable(Routes.RESET_PIN)    { ResetPinScreen(nav, prefs, repo) }
+            composable(Routes.LOGIN)         { LoginScreen(nav, prefs) }
+            composable(Routes.SIGNUP)        { SignupScreen(nav, prefs) }
+            composable(Routes.PIN)           { PinScreen(nav, prefs, repo) }
+            composable(Routes.VERIFY_EMAIL)  { VerifyEmailScreen(nav, prefs, repo) }
+            composable(Routes.FORGOT_PIN)    { ForgotPinScreen(nav, prefs) }
+            composable(Routes.SETUP_TOTP)    { SetupTotpScreen(nav, prefs, repo) }
+            composable(Routes.VERIFY_TOTP)   { VerifyTotpScreen(nav, prefs, repo) }
+            composable(Routes.RESET_PIN)     { ResetPinScreen(nav, prefs, repo) }
 
-            composable(Routes.HOME)         { HomeScreen(nav, prefs, repo) }
-            composable(Routes.HISTORY)      { HistoryScreen(nav, prefs, repo) }
-            composable(Routes.PROFILE)      { ProfileScreen(nav, prefs) }
+            composable(Routes.HOME)          { HomeScreen(nav, prefs, repo) }
+            composable(Routes.NOTIFICATIONS) { NotificationsScreen(nav, repo) }   // ← নতুন যোগ
+            composable(Routes.HISTORY)       { HistoryScreen(nav, prefs, repo) }
+            composable(Routes.PROFILE)       { ProfileScreen(nav, prefs) }
 
-            composable(Routes.DEPOSIT)      { DepositScreen(nav, repo) }
-            composable(Routes.WITHDRAW)     { WithdrawScreen(nav, prefs, repo) }
-            composable(Routes.MYQR)         { MyQrScreen(nav, prefs) }
-            composable(Routes.SCAN)         { ScanScreen(nav, prefs) }
-            composable(Routes.SEND)         { SendScreen(nav, prefs, repo) }
-            composable(Routes.KYC)          { KycScreen(nav, prefs, repo) }
+            composable(Routes.DEPOSIT)       { DepositScreen(nav, repo) }
+            composable(Routes.WITHDRAW)      { WithdrawScreen(nav, prefs, repo) }
+            composable(Routes.MYQR)          { MyQrScreen(nav, prefs) }
+            composable(Routes.SCAN)          { ScanScreen(nav, prefs) }
+            composable(Routes.SEND)          { SendScreen(nav, prefs, repo) }
+            composable(Routes.KYC)           { KycScreen(nav, prefs, repo) }
 
             composable(
                 route = Routes.SUCCESS + "?kind={kind}&amount={amount}&id={id}",
