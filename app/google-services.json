@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "70994814787",
+    "firebase_url": "https://nexa-auth-f7333-default-rtdb.firebaseio.com",
+    "project_id": "nexa-auth-f7333",
+    "storage_bucket": "nexa-auth-f7333.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:70994814787:android:11dac0dd02b028b2d671f6",
+        "android_client_info": {
+          "package_name": "com.aim.nexa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC_cC5QItHdaX8G07R-m--b1eix_2_eZ9c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
