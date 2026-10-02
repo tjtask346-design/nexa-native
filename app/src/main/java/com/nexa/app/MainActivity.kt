@@ -42,7 +42,10 @@ import com.nexa.app.data.Prefs
 import com.nexa.app.data.Repository
 import com.nexa.app.nav.NexaNav
 import com.nexa.app.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -59,13 +62,10 @@ class MainActivity : AppCompatActivity() {
         try {
             if (FirebaseApp.getApps(this).isEmpty()) {
                 FirebaseApp.initializeApp(this)
-                Log.d("NEXA_FCM", "Firebase App initialized manually")
-            } else {
-                Log.d("NEXA_FCM", "Firebase App already exists")
+                Log.d("NEXA_FCM", "Firebase App initialized")
             }
         } catch (e: Exception) {
             Log.e("NEXA_FCM", "Firebase init FAILED", e)
-            Toast.makeText(this, "Firebase init failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
 
         prefs = Prefs(applicationContext)
@@ -106,13 +106,13 @@ class MainActivity : AppCompatActivity() {
 }
 
 // ═══════════════════════════════════════════════
-// FCM TOKEN SYNC — DEEP diagnostic logging
+// FCM TOKEN SYNC — Background thread to avoid blocking
 // ═══════════════════════════════════════════════
 @Composable
 fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
     val context = LocalContext.current
 
-    // ─── Fetch FCM token with FULL exception chain ───
+    // ─── Fetch FCM token on Background thread ───
     LaunchedEffect(Unit) {
         if (!prefs.fcmToken.isNullOrBlank()) {
             Log.d("NEXA_FCM", "Using cached token")
@@ -120,21 +120,20 @@ fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
         }
 
         try {
-            Log.d("NEXA_FCM", "Requesting FCM token...")
-            val token = com.google.android.gms.tasks.Tasks.await(
-                FirebaseMessaging.getInstance().token
-            )
+            Log.d("NEXA_FCM", "Requesting FCM token on IO dispatcher...")
+            val token = withContext(Dispatchers.IO) {
+                FirebaseMessaging.getInstance().token.await()
+            }
             if (!token.isNullOrBlank()) {
                 prefs.fcmToken = token
                 prefs.fcmTokenSynced = false
-                Log.d("NEXA_FCM", "SUCCESS: token = ${token.take(30)}...")
+                Log.d("NEXA_FCM", "SUCCESS: ${token.take(30)}...")
                 Toast.makeText(context, "FCM token OK ✓", Toast.LENGTH_SHORT).show()
             } else {
-                Log.e("NEXA_FCM", "Token is blank")
+                Log.e("NEXA_FCM", "Token blank")
                 Toast.makeText(context, "FCM token empty", Toast.LENGTH_LONG).show()
             }
         } catch (e: Exception) {
-            // ═══ Walk through the ENTIRE exception chain ═══
             val messages = mutableListOf<String>()
             var current: Throwable? = e
             while (current != null) {
@@ -142,14 +141,8 @@ fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
                 current = current.cause
             }
             val fullMsg = messages.joinToString(" → ")
-            Log.e("NEXA_FCM", "FULL ERROR CHAIN: $fullMsg", e)
-
-            // Show FULL message on screen
-            Toast.makeText(
-                context,
-                "FCM ERR: $fullMsg",
-                Toast.LENGTH_LONG
-            ).show()
+            Log.e("NEXA_FCM", "FULL CHAIN: $fullMsg", e)
+            Toast.makeText(context, "FCM ERR: $fullMsg", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -166,7 +159,7 @@ fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
                     val res = repo.saveFcmToken(fcm)
                     if (res.isSuccess && res.getOrNull()?.success == true) {
                         prefs.fcmTokenSynced = true
-                        Log.d("NEXA_FCM", "Synced to backend ✓")
+                        Log.d("NEXA_FCM", "Synced ✓")
                         Toast.makeText(context, "FCM synced ✓", Toast.LENGTH_SHORT).show()
                         return@LaunchedEffect
                     } else {
