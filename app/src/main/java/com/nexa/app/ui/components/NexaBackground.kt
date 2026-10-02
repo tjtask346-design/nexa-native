@@ -1,22 +1,14 @@
 package com.nexa.app.ui.components
 
-import android.graphics.RenderEffect
-import android.graphics.Shader
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.dp
 import com.nexa.app.ui.theme.NexaBg
 import com.nexa.app.ui.theme.NexaGreen
 import com.nexa.app.ui.theme.NexaTeal
@@ -31,67 +23,62 @@ fun NexaScreen(
             .fillMaxSize()
             .background(NexaBg)
     ) {
-        // ══════════════════════════════════════════════════
-        // GREEN GLOW — top-left (HTML: top:-190px left:-90px 360x360 blur34)
-        // ══════════════════════════════════════════════════
+        // ═══ GLOW LAYER (behind content) ═══
         Box(
             Modifier
-                .offset(x = (-110).dp, y = (-190).dp)
-                .size(360.dp)
-                .graphicsLayer {
-                    // Real GPU blur — works on Android 12+
-                    renderEffect = RenderEffect
-                        .createBlurEffect(
-                            90f, 90f,                  // sigma X, Y — very soft
-                            Shader.TileMode.DECAL
-                        )
-                        .asComposeRenderEffect()
-                    compositingStrategy = CompositingStrategy.Offscreen
+                .fillMaxSize()
+                .drawBehind {
+
+                    // ─── GREEN GLOW — top-left corner ───
+                    // Large radius (1.6x screen) + high alpha (0.55) → strong spread
+                    val gC = Offset(-size.width * 0.15f, -size.height * 0.05f)
+                    val gR = size.width * 1.60f
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colorStops = arrayOf(
+                                0.00f to NexaGreen.copy(alpha = 0.55f),
+                                0.10f to NexaGreen.copy(alpha = 0.48f),
+                                0.22f to NexaGreen.copy(alpha = 0.38f),
+                                0.35f to NexaGreen.copy(alpha = 0.28f),
+                                0.50f to NexaGreen.copy(alpha = 0.18f),
+                                0.65f to NexaGreen.copy(alpha = 0.10f),
+                                0.80f to NexaGreen.copy(alpha = 0.04f),
+                                0.92f to NexaGreen.copy(alpha = 0.015f),
+                                1.00f to Color.Transparent
+                            ),
+                            center = gC,
+                            radius = gR
+                        ),
+                        radius = gR,
+                        center = gC
+                    )
+
+                    // ─── TEAL GLOW — top-right corner ───
+                    val tC = Offset(size.width * 1.15f, size.height * 0.15f)
+                    val tR = size.width * 1.35f
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colorStops = arrayOf(
+                                0.00f to NexaTeal.copy(alpha = 0.48f),
+                                0.10f to NexaTeal.copy(alpha = 0.42f),
+                                0.22f to NexaTeal.copy(alpha = 0.32f),
+                                0.35f to NexaTeal.copy(alpha = 0.23f),
+                                0.50f to NexaTeal.copy(alpha = 0.15f),
+                                0.65f to NexaTeal.copy(alpha = 0.08f),
+                                0.80f to NexaTeal.copy(alpha = 0.03f),
+                                0.92f to NexaTeal.copy(alpha = 0.01f),
+                                1.00f to Color.Transparent
+                            ),
+                            center = tC,
+                            radius = tR
+                        ),
+                        radius = tR,
+                        center = tC
+                    )
                 }
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            NexaGreen.copy(alpha = 0.55f),
-                            NexaGreen.copy(alpha = 0.35f),
-                            NexaGreen.copy(alpha = 0.12f),
-                            Color.Transparent
-                        )
-                    ),
-                    shape = CircleShape
-                )
         )
 
-        // ══════════════════════════════════════════════════
-        // TEAL GLOW — top-right (HTML: top:130px right:-150px 320x320 blur34)
-        // ══════════════════════════════════════════════════
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 150.dp, y = 130.dp)
-                .size(320.dp)
-                .graphicsLayer {
-                    renderEffect = RenderEffect
-                        .createBlurEffect(
-                            90f, 90f,
-                            Shader.TileMode.DECAL
-                        )
-                        .asComposeRenderEffect()
-                    compositingStrategy = CompositingStrategy.Offscreen
-                }
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            NexaTeal.copy(alpha = 0.48f),
-                            NexaTeal.copy(alpha = 0.30f),
-                            NexaTeal.copy(alpha = 0.10f),
-                            Color.Transparent
-                        )
-                    ),
-                    shape = CircleShape
-                )
-        )
-
-        // ═══ Content on top ═══
+        // ═══ Content (drawn on top of glow) ═══
         content()
     }
 }
