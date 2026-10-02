@@ -101,7 +101,6 @@ data class LoginPinRequest(val email: String, val pin: String, val code: String?
 data class DepositRequest(val amount: Double, val trxId: String, val paymentMethodNumber: String? = null)
 data class CashoutRequest(val amount: Double, val paymentMethodNumber: String? = null)
 data class WithdrawOnchainRequest(val to: String, val amount: Double)
-
 data class SendMoneyRequest(val receiverUid: String, val amount: Double, val pin: String)
 
 data class SetupTotpResponse(
@@ -113,6 +112,26 @@ data class SetupTotpResponse(
 data class VerifyTotpRequest(val code: String)
 data class DisableTotpRequest(val pin: String, val code: String)
 data class ResetPinRequest(val email: String, val code: String, val newPin: String)
+
+data class FcmTokenRequest(val token: String)
+
+// ═══ Notifications ═══
+data class NotificationItem(
+    @SerializedName(value = "_id", alternate = ["id"])
+    val id: String? = null,
+    val title: String = "",
+    val body: String = "",
+    val type: String = "system",
+    val read: Boolean = false,
+    val createdAt: String? = null
+)
+
+data class NotificationsResponse(
+    val success: Boolean = false,
+    val notifications: List<NotificationItem> = emptyList(),
+    val unread: Int = 0,
+    val message: String? = null
+)
 
 interface NexaApi {
     @POST("/api/auth/register-firebase")
@@ -135,6 +154,12 @@ interface NexaApi {
 
     @POST("/api/auth/reset-pin-with-totp")
     suspend fun resetPinWithTotp(@Body body: ResetPinRequest): SimpleResponse
+
+    @POST("/api/auth/save-fcm-token")
+    suspend fun saveFcmToken(
+        @Header("Authorization") token: String,
+        @Body body: FcmTokenRequest
+    ): SimpleResponse
 
     @GET("/api/transaction/my")
     suspend fun myTransactions(@Header("Authorization") token: String): TxListResponse
@@ -159,6 +184,25 @@ interface NexaApi {
 
     @GET("/api/kyc/my")
     suspend fun myKyc(@Header("Authorization") token: String): KycListResponse
+
+    // ═══ Notifications ═══
+    @GET("/api/notifications")
+    suspend fun getNotifications(@Header("Authorization") token: String): NotificationsResponse
+
+    @PUT("/api/notifications/{id}/read")
+    suspend fun markNotificationRead(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): SimpleResponse
+
+    @PUT("/api/notifications/read-all")
+    suspend fun markAllNotificationsRead(@Header("Authorization") token: String): SimpleResponse
+
+    @DELETE("/api/notifications/{id}")
+    suspend fun deleteNotification(
+        @Header("Authorization") token: String,
+        @Path("id") id: String
+    ): SimpleResponse
 }
 
 object ApiClient {
