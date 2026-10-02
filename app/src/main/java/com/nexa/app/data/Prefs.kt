@@ -37,5 +37,17 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("biometric", false)
         set(v) = sp.edit().putBoolean("biometric", v).apply()
 
+    var avatarUrl: String?
+        get() = sp.getString("avatarUrl", null)
+        set(v) = sp.edit().putString("avatarUrl", v).apply()
+
+    var fcmToken: String?
+        get() = sp.getString("fcmToken", null)
+        set(v) = sp.edit().putString("fcmToken", v).apply()
+
+    var fcmTokenSynced: Boolean
+        get() = sp.getBoolean("fcmTokenSynced", false)
+        set(v) = sp.edit().putBoolean("fcmTokenSynced", v).apply()
+
     fun clear() = sp.edit().clear().apply()
 }
