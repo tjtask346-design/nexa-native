@@ -15,6 +15,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -89,12 +91,12 @@ class MainActivity : AppCompatActivity() {
 }
 
 // ═══════════════════════════════════════════════
-// FCM TOKEN SYNC — fetches token and pushes to backend
+// FCM TOKEN SYNC
 // ═══════════════════════════════════════════════
 @Composable
 fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
 
-    // Step 1: Fetch FCM token once
+    // Step 1: Fetch FCM token
     LaunchedEffect(Unit) {
         try {
             val token = FirebaseMessaging.getInstance().token.await()
@@ -104,10 +106,10 @@ fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
         } catch (_: Exception) { }
     }
 
-    // Step 2: Continuously try to sync until successful
+    // Step 2: Sync to backend continuously until success
     LaunchedEffect(Unit) {
         var attempts = 0
-        while (attempts < 60) {  // try for 2 minutes max
+        while (attempts < 60) {
             try {
                 val authToken = prefs.token
                 val fcmToken = prefs.fcmToken
@@ -156,6 +158,8 @@ fun OfflineGate(content: @Composable () -> Unit) {
 
 @Composable
 private fun OfflineScreen(context: Context) {
+    val interaction = remember { MutableInteractionSource() }
+
     Box(
         Modifier.fillMaxSize().background(NexaBg).padding(32.dp),
         contentAlignment = Alignment.Center
@@ -183,9 +187,13 @@ private fun OfflineScreen(context: Context) {
             )
             Spacer(Modifier.height(8.dp))
             Box(
-                Modifier.clip(RoundedCornerShape(14.dp))
+                Modifier
+                    .clip(RoundedCornerShape(14.dp))
                     .background(NexaGreen.copy(alpha = 0.15f))
-                    .clickableSimple {
+                    .clickable(
+                        interactionSource = interaction,
+                        indication = null
+                    ) {
                         try {
                             context.startActivity(
                                 Intent(Settings.ACTION_WIRELESS_SETTINGS)
@@ -203,15 +211,6 @@ private fun OfflineScreen(context: Context) {
         }
     }
 }
-
-private fun Modifier.clickableSimple(onClick: () -> Unit): Modifier =
-    this.then(
-        androidx.compose.foundation.clickable(
-            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-            indication = null,
-            onClick = onClick
-        )
-    )
 
 private fun isNetworkOnline(context: Context): Boolean {
     return try {
