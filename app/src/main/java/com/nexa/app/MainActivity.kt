@@ -20,9 +20,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.AlertDialog
@@ -63,7 +61,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         try {
             if (FirebaseApp.getApps(this).isEmpty()) {
                 FirebaseApp.initializeApp(this)
@@ -110,36 +107,25 @@ class MainActivity : AppCompatActivity() {
 }
 
 // ═══════════════════════════════════════════════
-// FCM TOKEN SYNC — shows FULL error in dialog
+// FCM TOKEN SYNC
 // ═══════════════════════════════════════════════
 @Composable
 fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
     val context = LocalContext.current
     var errorDialogText by remember { mutableStateOf<String?>(null) }
 
-    // ─── Fetch FCM token ───
     LaunchedEffect(Unit) {
-        if (!prefs.fcmToken.isNullOrBlank()) {
-            Log.d("NEXA_FCM", "Using cached token")
-            return@LaunchedEffect
-        }
-
+        if (!prefs.fcmToken.isNullOrBlank()) return@LaunchedEffect
         try {
-            Log.d("NEXA_FCM", "Requesting FCM token on IO dispatcher...")
             val token = withContext(Dispatchers.IO) {
                 FirebaseMessaging.getInstance().token.await()
             }
             if (!token.isNullOrBlank()) {
                 prefs.fcmToken = token
                 prefs.fcmTokenSynced = false
-                Log.d("NEXA_FCM", "SUCCESS: ${token.take(30)}...")
                 Toast.makeText(context, "FCM token OK ✓", Toast.LENGTH_SHORT).show()
-            } else {
-                Log.e("NEXA_FCM", "Token blank")
-                errorDialogText = "Token empty"
             }
         } catch (e: Exception) {
-            // Walk through ENTIRE exception chain — collect classes + messages
             val sb = StringBuilder()
             var current: Throwable? = e
             var depth = 0
@@ -149,41 +135,20 @@ fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
                 current = current.cause
                 depth++
             }
-
-            val fullText = sb.toString()
-            Log.e("NEXA_FCM", "FULL CHAIN:\n$fullText", e)
-            errorDialogText = fullText
+            errorDialogText = sb.toString()
         }
     }
 
-    // ─── Show error in AlertDialog if set ───
     errorDialogText?.let { text ->
         AlertDialog(
             onDismissRequest = { errorDialogText = null },
             containerColor = NexaSurface,
             titleContentColor = NexaText,
             textContentColor = NexaMuted,
-            title = {
-                Text(
-                    "FCM Error",
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 16.sp
-                )
-            },
+            title = { Text("FCM Error", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp) },
             text = {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Text(
-                        text = text,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = NexaText,
-                        lineHeight = 15.sp
-                    )
+                Box(Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                    Text(text = text, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = NexaText)
                 }
             },
             confirmButton = {
@@ -194,7 +159,7 @@ fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
         )
     }
 
-    // ─── Sync to backend ───
+    // Sync to backend
     LaunchedEffect(Unit) {
         var attempt = 0
         while (attempt < 90) {
@@ -202,18 +167,15 @@ fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
                 val auth = prefs.token
                 val fcm = prefs.fcmToken
                 val synced = prefs.fcmTokenSynced
-
                 if (!auth.isNullOrBlank() && !fcm.isNullOrBlank() && !synced) {
                     val res = repo.saveFcmToken(fcm)
                     if (res.isSuccess && res.getOrNull()?.success == true) {
                         prefs.fcmTokenSynced = true
-                        Log.d("NEXA_FCM", "Synced ✓")
                         Toast.makeText(context, "FCM synced ✓", Toast.LENGTH_SHORT).show()
                         return@LaunchedEffect
                     }
                 }
             } catch (_: Exception) { }
-
             delay(2000)
             attempt++
         }
@@ -221,18 +183,31 @@ fun FcmTokenSyncEffect(prefs: Prefs, repo: Repository) {
 }
 
 // ═══════════════════════════════════════════════
-// OFFLINE GATE
+// OFFLINE GATE — now with periodic check every 2s
 // ═══════════════════════════════════════════════
 @Composable
 fun OfflineGate(content: @Composable () -> Unit) {
     val context = LocalContext.current
     var online by remember { mutableStateOf(isNetworkOnline(context)) }
 
+    // Periodic check every 2 seconds — catches net off while app is open
+    LaunchedEffect(Unit) {
+        while (true) {
+            val nowOnline = isNetworkOnline(context)
+            if (nowOnline != online) online = nowOnline
+            delay(2000)
+        }
+    }
+
+    // Also register callback for faster updates
     DisposableEffect(Unit) {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) { online = true }
-            override fun onLost(network: Network) { online = isNetworkOnline(context) }
+            override fun onLost(network: Network) {
+                // Small delay to avoid transient disconnects
+                online = isNetworkOnline(context)
+            }
             override fun onUnavailable() { online = false }
         }
         try { cm.registerDefaultNetworkCallback(callback) } catch (_: Exception) { }
