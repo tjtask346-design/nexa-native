@@ -71,6 +71,12 @@ class Repository(private val prefs: Prefs) {
             wrap { api.saveFcmToken(authHeader(), FcmTokenRequest(fcmToken)) }
         }
 
+    // ═══ NEW: Update avatar URL on backend ═══
+    suspend fun updateAvatar(avatarUrl: String): Result<UpdateAvatarResponse> =
+        withContext(Dispatchers.IO) {
+            wrap { api.updateAvatar(authHeader(), UpdateAvatarRequest(avatarUrl)) }
+        }
+
     suspend fun getNotifications(): Result<NotificationsResponse> =
         withContext(Dispatchers.IO) { wrap { api.getNotifications(authHeader()) } }
     suspend fun markNotificationRead(id: String): Result<SimpleResponse> =
@@ -85,6 +91,7 @@ class Repository(private val prefs: Prefs) {
         prefs.email = user?.email
         prefs.name = user?.displayName
         prefs.accountNumber = user?.accountNumber
+        prefs.avatarUrl = user?.avatarUrl   // ← NEW: sync from backend
         prefs.fcmTokenSynced = false
     }
     fun savePin(pin: String) { prefs.pin = pin }
