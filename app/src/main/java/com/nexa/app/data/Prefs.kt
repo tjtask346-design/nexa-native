@@ -53,20 +53,22 @@ class Prefs(context: Context) {
         get() = sp.getString("accountNumber", null)
         set(v) = sp.edit().putString("accountNumber", v).apply()
 
-    /** Full wipe — used for "Reset Demo" or account switch */
+    // ═══ NEW: KYC status cache ═══
+    var kycStatus: String
+        get() = sp.getString("kycStatus", "unverified") ?: "unverified"
+        set(v) = sp.edit().putString("kycStatus", v).apply()
+
     fun clear() = sp.edit().clear().apply()
 
-    /**
-     * Logout — preserves device-level data (avatar, fcm token, account number)
-     * so user sees same avatar when they login back.
-     */
     fun logout() {
         val savedAvatar = avatarUrl
         val savedFcm = fcmToken
         val savedAccount = accountNumber
+        val savedKyc = kycStatus
         sp.edit().clear().apply()
         avatarUrl = savedAvatar
         fcmToken = savedFcm
         accountNumber = savedAccount
+        kycStatus = savedKyc
     }
 }
