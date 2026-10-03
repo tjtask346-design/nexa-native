@@ -66,13 +66,11 @@ class Repository(private val prefs: Prefs) {
         withContext(Dispatchers.IO) { wrap { api.submitKyc(authHeader(), KycSubmitRequest(nid, front, back, selfie)) } }
     suspend fun myKyc(): Result<KycListResponse> = withContext(Dispatchers.IO) { wrap { api.myKyc(authHeader()) } }
 
-    // ═══ FCM ═══
     suspend fun saveFcmToken(fcmToken: String): Result<SimpleResponse> =
         withContext(Dispatchers.IO) {
             wrap { api.saveFcmToken(authHeader(), FcmTokenRequest(fcmToken)) }
         }
 
-    // ═══ Notifications ═══
     suspend fun getNotifications(): Result<NotificationsResponse> =
         withContext(Dispatchers.IO) { wrap { api.getNotifications(authHeader()) } }
     suspend fun markNotificationRead(id: String): Result<SimpleResponse> =
@@ -86,7 +84,12 @@ class Repository(private val prefs: Prefs) {
         prefs.token = token
         prefs.email = user?.email
         prefs.name = user?.displayName
+        prefs.accountNumber = user?.accountNumber
+        prefs.fcmTokenSynced = false
     }
     fun savePin(pin: String) { prefs.pin = pin }
-    fun clearSession() { FirebaseAuthHelper.signOut(); prefs.clear() }
+    fun clearSession() {
+        FirebaseAuthHelper.signOut()
+        prefs.logout()   // ← preserves avatar + fcm token + account number
+    }
 }
