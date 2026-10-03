@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -25,6 +26,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.nexa.app.data.Prefs
 import com.nexa.app.ui.components.NexaIconButton
+import com.nexa.app.ui.components.UserAvatar
 import com.nexa.app.ui.theme.*
 
 @Composable
@@ -49,7 +51,7 @@ fun MyQrScreen(nav: NavController, prefs: Prefs) {
                 fontWeight = FontWeight.Bold,
                 fontSize = 17.sp,
                 modifier = Modifier.weight(1f),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
             Spacer(Modifier.width(40.dp))
         }
@@ -67,23 +69,23 @@ fun MyQrScreen(nav: NavController, prefs: Prefs) {
                     .border(1.dp, NexaGreen.copy(alpha = 0.2f), RoundedCornerShape(26.dp))
                     .padding(22.dp)
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        Modifier
-                            .size(52.dp)
-                            .clip(RoundedCornerShape(17.dp))
-                            .background(NexaGreen.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            (prefs.name ?: "U").first().toString().uppercase(),
-                            color = NexaGreen,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 22.sp
-                        )
-                    }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // ═══ User avatar (was initial letter) ═══
+                    UserAvatar(
+                        prefs = prefs,
+                        size = 52.dp,
+                        cornerRadius = 17.dp
+                    )
                     Spacer(Modifier.height(12.dp))
-                    Text(prefs.name ?: "User", color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                    Text(
+                        prefs.name ?: "User",
+                        color = NexaText,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 18.sp
+                    )
                     Text(handle, color = NexaMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
@@ -109,12 +111,18 @@ fun MyQrScreen(nav: NavController, prefs: Prefs) {
 
             Spacer(Modifier.height(18.dp))
 
-            Text("Scan to pay me instantly", color = NexaText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(
+                "Scan to pay me instantly",
+                color = NexaText, fontWeight = FontWeight.Bold, fontSize = 14.sp
+            )
             Text("0% fee · Instant credit · Nexa-to-Nexa", color = NexaMuted, fontSize = 11.5.sp)
 
             Spacer(Modifier.height(22.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 ActionButton("Share QR", "↑", Modifier.weight(1f)) {
                     val send = Intent().apply {
                         action = Intent.ACTION_SEND
@@ -124,8 +132,14 @@ fun MyQrScreen(nav: NavController, prefs: Prefs) {
                     ctx.startActivity(Intent.createChooser(send, "Share via"))
                 }
                 ActionButton("Copy Link", "⧉", Modifier.weight(1f)) {
-                    val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    cm.setPrimaryClip(android.content.ClipData.newPlainText("nexa", "https://nexa.app/${handle.replace("@","")}"))
+                    val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                        as android.content.ClipboardManager
+                    cm.setPrimaryClip(
+                        android.content.ClipData.newPlainText(
+                            "nexa",
+                            "https://nexa.app/${handle.replace("@", "")}"
+                        )
+                    )
                     android.widget.Toast.makeText(ctx, "Copied ✓", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
@@ -136,7 +150,12 @@ fun MyQrScreen(nav: NavController, prefs: Prefs) {
 }
 
 @Composable
-private fun ActionButton(label: String, icon: String, modifier: Modifier, onClick: () -> Unit) {
+private fun ActionButton(
+    label: String,
+    icon: String,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
     Box(
         modifier
             .clip(RoundedCornerShape(16.dp))
@@ -150,7 +169,10 @@ private fun ActionButton(label: String, icon: String, modifier: Modifier, onClic
             .padding(vertical = 15.dp),
         contentAlignment = Alignment.Center
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(icon, color = NexaText, fontSize = 14.sp)
             Text(label, color = NexaText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
