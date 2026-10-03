@@ -58,14 +58,19 @@ private val OPTIONS = listOf(
 )
 
 @Composable
-fun DepositScreen(nav: NavController, repo: Repository) {
+fun DepositScreen(
+    nav: NavController,
+    repo: Repository,
+    initialCrypto: String = ""
+) {
     val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
 
     var user by remember { mutableStateOf<User?>(null) }
     var loading by remember { mutableStateOf(true) }
-    var selected by remember { mutableStateOf<String?>(null) }
+    var selected by remember {
+        mutableStateOf(initialCrypto.takeIf { it.isNotBlank() })
+    }
 
     LaunchedEffect(Unit) {
         repo.me().onSuccess { user = it.user }
@@ -75,11 +80,12 @@ fun DepositScreen(nav: NavController, repo: Repository) {
     fun addressFor(key: String): String? = when (key) {
         "usdt" -> user?.wallets?.bscAddress?.takeIf { it.isNotBlank() }
         "ltc"  -> user?.ltcAddress?.takeIf { it.isNotBlank() }
-        "nexa" -> user?.handle
+        "nexa" -> user?.accountNumber?.takeIf { it.isNotBlank() }
         else   -> null
     }
 
     Column(Modifier.fillMaxSize().background(NexaBg)) {
+        // Header
         Row(
             Modifier.fillMaxWidth().padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -125,7 +131,7 @@ fun DepositScreen(nav: NavController, repo: Repository) {
                             onBack = { selected = null },
                             onCopy = {
                                 clipboard.setText(AnnotatedString(address))
-                                Toast.makeText(ctx, "Address copied", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(ctx, "Copied", Toast.LENGTH_SHORT).show()
                             }
                         )
                     }
@@ -332,16 +338,28 @@ private fun AddressView(
         Spacer(Modifier.height(22.dp))
 
         if (option.key == "nexa") {
+            // ═══ NEXA — Account Number (not username) ═══
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
                     .background(NexaSurface)
-                    .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(20.dp))
+                    .border(1.dp, NexaGreen.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
                     .padding(20.dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text("Your Nexa Handle", color = NexaMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    Text(address, color = NexaText, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(
+                        "YOUR ACCOUNT NUMBER",
+                        color = NexaMuted, fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        address,
+                        color = NexaGreen,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.5.sp
+                    )
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -390,9 +408,9 @@ private fun AddressView(
             Icon(Icons.Filled.Info, null, tint = NexaTeal, modifier = Modifier.size(16.dp))
             Text(
                 if (option.key == "nexa")
-                    "Share this handle with another Nexa user. They can send you money instantly with 0% fee."
+                    "Share this account number with another Nexa user. They can send you money instantly with 0% fee."
                 else
-                    "Send only ${option.name} on ${option.network} to this address. Wrong network may cause permanent loss. Balance updates automatically after network confirmation.",
+                    "Send only ${option.name} on ${option.network} to this address. Wrong network may cause permanent loss.",
                 color = Color(0xFF7DD3C8), fontSize = 11.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium
             )
         }
@@ -415,7 +433,7 @@ private fun CopyButton(onClick: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Filled.ContentCopy, null, tint = NexaGreen, modifier = Modifier.size(16.dp))
-            Text("Copy address", color = NexaGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("Copy", color = NexaGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
     }
 }
