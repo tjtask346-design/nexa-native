@@ -62,7 +62,11 @@ private const val ANIM_MS = 320
 fun NexaNav(prefs: Prefs, repo: Repository) {
     val nav = rememberNavController()
 
-    Box(Modifier.fillMaxSize().background(NexaBg)) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(NexaBg)
+    ) {
         // Ambient glow
         Canvas(Modifier.fillMaxSize()) {
             val gC = Offset(0f, 0f)
@@ -109,7 +113,9 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                 ) + fadeOut(animationSpec = tween(200))
             }
         ) {
-            // SPLASH
+            // ═══════════════════════════════════════════════
+            // SPLASH — validates session before navigating
+            // ═══════════════════════════════════════════════
             composable(Routes.SPLASH) {
                 var splashTimePassed by remember { mutableStateOf(false) }
                 var validationDone by remember { mutableStateOf(false) }
@@ -154,9 +160,9 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
             composable(Routes.HOME)          { HomeScreen(nav, prefs, repo) }
             composable(Routes.NOTIFICATIONS) { NotificationsScreen(nav, repo) }
             composable(Routes.HISTORY)       { HistoryScreen(nav, prefs, repo) }
-            composable(Routes.PROFILE)       { ProfileScreen(nav, prefs) }
+            composable(Routes.PROFILE)       { ProfileScreen(nav, prefs, repo) }   // ← FIXED: repo যোগ
 
-            // ═══ DEPOSIT — with crypto param ═══
+            // ═══ DEPOSIT with optional crypto prefill ═══
             composable(
                 route = Routes.DEPOSIT + "?crypto={crypto}",
                 arguments = listOf(
@@ -177,7 +183,7 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
             composable(Routes.MYQR)          { MyQrScreen(nav, prefs) }
             composable(Routes.SCAN)          { ScanScreen(nav, prefs) }
 
-            // ═══ SEND with recipient prefill ═══
+            // ═══ SEND with optional recipient prefill ═══
             composable(
                 route = Routes.SEND + "?recipient={recipient}",
                 arguments = listOf(
