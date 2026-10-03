@@ -16,7 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -32,18 +32,25 @@ import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
-fun SendScreen(nav: NavController, prefs: Prefs, repo: Repository) {
+fun SendScreen(
+    nav: NavController,
+    prefs: Prefs,
+    repo: Repository,
+    prefilledRecipient: String = ""
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var recipient by remember { mutableStateOf("") }
+    var recipient by remember { mutableStateOf(prefilledRecipient) }
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var balance by remember { mutableStateOf(0.0) }
     var loading by remember { mutableStateOf(false) }
     var showPinModal by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { repo.me().onSuccess { it.user?.let { u -> balance = u.balance } } }
+    LaunchedEffect(Unit) {
+        repo.me().onSuccess { it.user?.let { u -> balance = u.balance } }
+    }
 
     val amtValue = amount.toDoubleOrNull() ?: 0.0
     val canSubmit = !loading && recipient.isNotBlank() && amtValue >= 1.0 && amtValue <= balance
@@ -60,8 +67,7 @@ fun SendScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             Text(
                 "Send Money",
                 color = NexaText, fontWeight = FontWeight.Bold, fontSize = 17.sp,
-                modifier = Modifier.weight(1f),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                modifier = Modifier.weight(1f), textAlign = TextAlign.Center
             )
             Spacer(Modifier.width(40.dp))
         }
@@ -70,20 +76,20 @@ fun SendScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)
         ) {
             Text(
-                "Recipient (email or account number)",
+                "RECIPIENT ACCOUNT NUMBER",
                 color = NexaMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 letterSpacing = 0.4.sp, modifier = Modifier.padding(bottom = 10.dp)
             )
             NexaPlainField(
                 value = recipient,
                 onChange = { recipient = it },
-                placeholder = "email or account number"
+                placeholder = "10-digit account number"
             )
 
             Spacer(Modifier.height(20.dp))
 
             Text(
-                "Amount (USD)",
+                "AMOUNT (USD)",
                 color = NexaMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 letterSpacing = 0.4.sp, modifier = Modifier.padding(bottom = 10.dp)
             )
@@ -108,15 +114,11 @@ fun SendScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             Spacer(Modifier.height(20.dp))
 
             Text(
-                "Note (optional)",
+                "NOTE (OPTIONAL)",
                 color = NexaMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 letterSpacing = 0.4.sp, modifier = Modifier.padding(bottom = 10.dp)
             )
-            NexaPlainField(
-                value = note,
-                onChange = { note = it },
-                placeholder = "What's this for?"
-            )
+            NexaPlainField(value = note, onChange = { note = it }, placeholder = "What's this for?")
 
             Spacer(Modifier.height(20.dp))
 
@@ -161,7 +163,7 @@ fun SendScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 loading = false
                 res.onSuccess {
                     Toast.makeText(ctx, "Sent ✓", Toast.LENGTH_SHORT).show()
-                    nav.navigate("success?kind=send&amount=$amtValue&id=$recipient") {
+                    nav.navigate("${Routes.SUCCESS}?kind=send&amount=$amtValue&id=$recipient") {
                         popUpTo(Routes.HOME)
                     }
                 }.onFailure {
