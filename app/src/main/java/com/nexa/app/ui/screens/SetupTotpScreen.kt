@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
@@ -116,7 +115,6 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         }
     }
 
-    // Auto-verify
     LaunchedEffect(code) {
         if (code.length == 6 && code != lastSubmitted && !busy && !loading && error == null) {
             lastSubmitted = code
@@ -125,65 +123,128 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     }
 
     Column(
-        Modifier.fillMaxSize().background(NexaBg).padding(horizontal = 24.dp)
+        Modifier
+            .fillMaxSize()
+            .background(NexaBg)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp)
     ) {
-        Spacer(Modifier.height(40.dp))
+        Spacer(Modifier.height(36.dp))
+
+        // ═══ Header ═══
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
-                Modifier.size(84.dp).clip(RoundedCornerShape(26.dp))
-                    .background(Brush.linearGradient(listOf(NexaGreen.copy(alpha = 0.15f), NexaTeal.copy(alpha = 0.12f))))
-                    .border(1.dp, NexaGreen.copy(alpha = 0.3f), RoundedCornerShape(26.dp)),
+                Modifier
+                    .size(60.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                NexaGreen.copy(alpha = 0.16f),
+                                NexaTeal.copy(alpha = 0.12f)
+                            )
+                        )
+                    )
+                    .border(1.dp, NexaGreen.copy(alpha = 0.28f), RoundedCornerShape(18.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.Shield, null, tint = NexaGreen, modifier = Modifier.size(42.dp))
+                Icon(Icons.Filled.Shield, null, tint = NexaGreen, modifier = Modifier.size(28.dp))
             }
-            Spacer(Modifier.height(20.dp))
-            Text("Enable Two-Factor", color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
-            Spacer(Modifier.height(8.dp))
+
+            Spacer(Modifier.height(16.dp))
             Text(
-                "Scan with Google Authenticator or Authy",
-                color = NexaMuted, fontSize = 13.sp, textAlign = TextAlign.Center
+                "Enable Two-Factor",
+                color = NexaText,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 21.sp,
+                letterSpacing = (-0.4).sp
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Scan the QR with Google Authenticator",
+                color = NexaMuted, fontSize = 12.5.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+        }
 
-            when {
-                loading -> Text("Generating secret…", color = NexaMuted, fontSize = 13.sp)
+        Spacer(Modifier.height(24.dp))
 
-                error != null && secret.isBlank() -> Box(
+        when {
+            loading -> {
+                Box(
+                    Modifier.fillMaxWidth().padding(40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Generating secret…", color = NexaMuted, fontSize = 13.sp)
+                }
+            }
+
+            error != null && secret.isBlank() -> {
+                Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                         .background(NexaRed.copy(alpha = 0.1f))
                         .border(1.dp, NexaRed.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
-                        .padding(14.dp)
-                ) { Text(error!!, color = NexaRed, fontSize = 12.5.sp) }
+                        .padding(16.dp)
+                ) {
+                    Text(error!!, color = NexaRed, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+                }
+            }
 
-                else -> {
-                    Box(Modifier.size(200.dp).clip(RoundedCornerShape(20.dp)).background(Color.White).padding(14.dp)) {
-                        if (qr != null) Image(qr.asImageBitmap(), "QR", modifier = Modifier.fillMaxSize())
+            else -> {
+                // ═══ QR CODE ═══
+                Column(
+                    Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        Modifier
+                            .size(170.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.White)
+                            .padding(12.dp)
+                    ) {
+                        if (qr != null) {
+                            Image(qr.asImageBitmap(), "QR", modifier = Modifier.fillMaxSize())
+                        }
                     }
+
                     Spacer(Modifier.height(16.dp))
-                    Text("Can't scan? Enter manually:", color = NexaDim, fontSize = 11.5.sp)
+
+                    // ═══ SECRET ═══
+                    Text(
+                        "Can't scan? Enter manually",
+                        color = NexaDim, fontSize = 11.sp, fontWeight = FontWeight.Medium
+                    )
                     Spacer(Modifier.height(8.dp))
 
-                    // Secret box
                     Box(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(NexaSurface)
-                            .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(14.dp))
-                            .padding(12.dp)
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(NexaSurface)
+                            .border(1.dp, NexaBorder.copy(alpha = 0.10f), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                secret, color = NexaText, fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
+                                secret,
+                                color = NexaText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 1.sp,
                                 modifier = Modifier.weight(1f)
                             )
                             Box(
-                                Modifier.clip(RoundedCornerShape(10.dp)).background(NexaGreen.copy(alpha = 0.13f))
+                                Modifier
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(NexaGreen.copy(alpha = 0.14f))
                                     .clickable(
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null
@@ -203,219 +264,174 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                             }
                         }
                     }
-
-                    Spacer(Modifier.height(24.dp))
-                    Text(
-                        "ENTER 6-DIGIT CODE",
-                        color = NexaMuted, fontSize = 11.5.sp,
-                        fontWeight = FontWeight.ExtraBold, letterSpacing = 0.6.sp
-                    )
-                    Spacer(Modifier.height(12.dp))
-
-                    CodeInput6(value = code, onChange = { code = it.filter { c -> c.isDigit() }.take(6) })
-
-                    if (error != null) {
-                        Spacer(Modifier.height(12.dp))
-                        Text(error!!, color = NexaRed, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    if (busy) {
-                        Spacer(Modifier.height(12.dp))
-                        Text("Verifying…", color = NexaGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(Modifier.height(30.dp))
                 }
+
+                Spacer(Modifier.height(28.dp))
+
+                // ═══ CODE INPUT ═══
+                Text(
+                    "ENTER 6-DIGIT CODE",
+                    color = NexaMuted,
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+
+                Spacer(Modifier.height(14.dp))
+
+                CodeInput6(value = code) { code = it.filter { c -> c.isDigit() }.take(6) }
+
+                if (error != null) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        error!!,
+                        color = NexaRed, fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                if (busy) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Verifying…",
+                        color = NexaGreen, fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(Modifier.height(30.dp))
             }
         }
     }
 }
 
 // ═══════════════════════════════════════════════
-// CODE INPUT — 6 boxes + custom dialpad (Paste / 0 / Next)
+// SHARED CODE INPUT — 6 boxes + professional dialpad
 // ═══════════════════════════════════════════════
 @Composable
-fun CodeInput6(value: String, onChange: (String) -> Unit) {
+fun CodeInput6(
+    value: String,
+    onChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
 
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-
-        // ═══ 6 digit boxes ═══
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // ═══ 6 DIGIT BOXES ═══
         Row(
-            Modifier.fillMaxWidth().height(60.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Modifier.widthIn(max = 340.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             repeat(6) { i ->
+                val filled = i < value.length
+                val active = i == value.length
                 Box(
                     Modifier
                         .weight(1f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(NexaSurface)
+                        .height(56.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(
+                            if (active) NexaSurface2 else NexaSurface
+                        )
                         .border(
-                            1.5.dp,
-                            if (i < value.length) NexaGreen.copy(alpha = 0.5f)
-                            else NexaBorder.copy(alpha = 0.09f),
-                            RoundedCornerShape(14.dp)
+                            width = if (active) 1.5.dp else 1.dp,
+                            color = when {
+                                active -> NexaGreen.copy(alpha = 0.65f)
+                                filled -> NexaGreen.copy(alpha = 0.35f)
+                                else -> NexaBorder.copy(alpha = 0.12f)
+                            },
+                            shape = RoundedCornerShape(13.dp)
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        if (i < value.length) value[i].toString() else "",
-                        color = NexaText, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        // ═══ Custom numeric dialpad ═══
-        Column(
-            Modifier
-                .widthIn(max = 300.dp)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Rows 1-9
-            val rows = listOf(
-                listOf("1", "2", "3"),
-                listOf("4", "5", "6"),
-                listOf("7", "8", "9")
-            )
-            rows.forEach { row ->
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    row.forEach { digit ->
-                        KeypadButton(
-                            digit = digit,
-                            modifier = Modifier.weight(1f),
-                            onClick = { if (value.length < 6) onChange(value + digit) }
+                    if (filled) {
+                        Text(
+                            value[i].toString(),
+                            color = NexaText,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    } else if (active) {
+                        // Blinking cursor
+                        Box(
+                            Modifier
+                                .size(width = 2.dp, height = 20.dp)
+                                .background(NexaGreen, RoundedCornerShape(1.dp))
                         )
                     }
                 }
             }
-
-            // ═══ Bottom row: PASTE / 0 / NEXT ═══
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // ─── PASTE button (was * position) ───
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(52.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(NexaGreen.copy(alpha = 0.10f))
-                        .border(1.dp, NexaGreen.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            val clip = clipboard.getText()?.text ?: ""
-                            val digits = clip.filter { it.isDigit() }.take(6)
-                            if (digits.isNotEmpty()) {
-                                onChange(digits)
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "No digits in clipboard",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Filled.ContentPaste,
-                        contentDescription = "Paste",
-                        tint = NexaGreen,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                // ─── ZERO ───
-                KeypadButton(
-                    digit = "0",
-                    modifier = Modifier.weight(1f),
-                    onClick = { if (value.length < 6) onChange(value + "0") }
-                )
-
-                // ─── NEXT button (was # position) ───
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(52.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(
-                            if (value.length == 6) NexaGreen.copy(alpha = 0.18f)
-                            else NexaSurface2
-                        )
-                        .border(
-                            1.dp,
-                            if (value.length == 6) NexaGreen.copy(alpha = 0.5f)
-                            else NexaBorder.copy(alpha = 0.15f),
-                            RoundedCornerShape(14.dp)
-                        )
-                        .clickable(
-                            enabled = value.length == 6,
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            // Backup — auto-verify handles this
-                            // User can tap for manual trigger if needed
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Filled.ArrowForward,
-                        contentDescription = "Next",
-                        tint = if (value.length == 6) NexaGreen else NexaDim,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
         }
 
-        // ═══ Backspace helper (small, below dialpad) ═══
-        Spacer(Modifier.height(10.dp))
-        Box(
-            Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    if (value.isNotEmpty()) onChange(value.dropLast(1))
-                }
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+        Spacer(Modifier.height(28.dp))
+
+        // ═══ DIALPAD ═══
+        Column(
+            Modifier.widthIn(max = 300.dp).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Icon(
-                Icons.Filled.Backspace,
-                contentDescription = "Backspace",
-                tint = NexaMuted,
-                modifier = Modifier.size(20.dp)
-            )
+            // 1 2 3
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DialKey("1", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "1") }
+                DialKey("2", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "2") }
+                DialKey("3", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "3") }
+            }
+            // 4 5 6
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DialKey("4", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "4") }
+                DialKey("5", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "5") }
+                DialKey("6", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "6") }
+            }
+            // 7 8 9
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DialKey("7", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "7") }
+                DialKey("8", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "8") }
+                DialKey("9", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "9") }
+            }
+            // 📋 0 ⌫
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ActionKey(Modifier.weight(1f), onClick = {
+                    val clip = clipboard.getText()?.text ?: ""
+                    val digits = clip.filter { it.isDigit() }.take(6)
+                    if (digits.isNotEmpty()) onChange(digits)
+                    else Toast.makeText(context, "No digits in clipboard", Toast.LENGTH_SHORT).show()
+                }) {
+                    Icon(Icons.Filled.ContentPaste, "Paste", tint = NexaGreen, modifier = Modifier.size(22.dp))
+                }
+                DialKey("0", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "0") }
+                ActionKey(Modifier.weight(1f), onClick = {
+                    if (value.isNotEmpty()) onChange(value.dropLast(1))
+                }) {
+                    Icon(Icons.Filled.Backspace, "Backspace", tint = NexaMuted, modifier = Modifier.size(22.dp))
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun KeypadButton(
+private fun DialKey(
     digit: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val interaction = remember { MutableInteractionSource() }
     Box(
         modifier
-            .height(52.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .height(62.dp)
+            .clip(RoundedCornerShape(18.dp))
             .background(NexaSurface)
-            .border(1.dp, NexaBorder.copy(alpha = 0.15f), RoundedCornerShape(14.dp))
+            .border(1.dp, NexaBorder.copy(alpha = 0.12f), RoundedCornerShape(18.dp))
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null,
                 onClick = onClick
             ),
@@ -424,8 +440,33 @@ private fun KeypadButton(
         Text(
             digit,
             color = NexaText,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = (-0.3).sp
         )
+    }
+}
+
+@Composable
+private fun ActionKey(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier
+            .height(62.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(NexaSurface2)
+            .border(1.dp, NexaBorder.copy(alpha = 0.12f), RoundedCornerShape(18.dp))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
     }
 }
