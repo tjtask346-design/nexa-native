@@ -1,7 +1,6 @@
 package com.nexa.app.ui.screens
 
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,11 +76,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     if (lastSeenCount > 0 && unread > lastSeenCount) {
                         val latest = res.getOrNull()?.notifications?.firstOrNull()
                         if (latest != null) {
-                            Toast.makeText(
-                                ctx,
-                                "${latest.title}\n${latest.body}",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            Toast.makeText(ctx, "${latest.title}\n${latest.body}", Toast.LENGTH_LONG).show()
                         }
                     }
                     lastSeenCount = unread
@@ -115,23 +109,15 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
     Column(Modifier.fillMaxSize()) {
         Column(
-            Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 20.dp)
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 20.dp)
         ) {
-            // ══════════ TOP BAR ══════════
+            // TOP BAR
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // ═══ User avatar (was Nexa logo) ═══
-                UserAvatar(
-                    prefs = prefs,
-                    size = 42.dp,
-                    cornerRadius = 14.dp
-                )
+                UserAvatar(prefs = prefs, size = 42.dp, cornerRadius = 14.dp)
 
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -146,11 +132,8 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     )
                 }
 
-                // Bell with badge
                 Box(
-                    Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(13.dp))
+                    Modifier.size(40.dp).clip(RoundedCornerShape(13.dp))
                         .background(NexaSurface2)
                         .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(13.dp))
                         .clickable(
@@ -160,33 +143,27 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Filled.Notifications,
-                        contentDescription = "Notifications",
-                        tint = NexaText,
-                        modifier = Modifier.size(19.dp)
+                        Icons.Filled.Notifications, "Notifications",
+                        tint = NexaText, modifier = Modifier.size(19.dp)
                     )
                     if (unreadCount > 0) {
                         Box(
-                            Modifier
-                                .align(Alignment.TopEnd)
+                            Modifier.align(Alignment.TopEnd)
                                 .offset(x = 4.dp, y = (-4).dp)
-                                .size(18.dp)
-                                .clip(RoundedCornerShape(9.dp))
+                                .size(18.dp).clip(RoundedCornerShape(9.dp))
                                 .background(NexaRed),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 if (unreadCount > 9) "9+" else unreadCount.toString(),
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.ExtraBold
+                                color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold
                             )
                         }
                     }
                 }
             }
 
-            // ══════════ BALANCE CARD ══════════
+            // BALANCE CARD
             BalanceCard(
                 balance = balance,
                 hidden = hidden,
@@ -196,7 +173,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
 
-            // ══════════ QUICK ACTIONS ══════════
+            // QUICK ACTIONS
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -215,29 +192,26 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 }
             }
 
-            // ══════════ QUICK DEPOSIT ══════════
+            // ═══════════ QUICK DEPOSIT — direct crypto navigation ═══════════
             Spacer(Modifier.height(24.dp))
             Box(Modifier.padding(horizontal = 20.dp)) { SectionHeader("Quick Deposit") }
             Spacer(Modifier.height(12.dp))
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 MethodCard("USDT", "BEP20 · BSC", R.drawable.usdt, Color(0xFF26A17B)) {
-                    nav.navigate(Routes.DEPOSIT)
+                    nav.navigate("${Routes.DEPOSIT}?crypto=usdt")
                 }
                 MethodCard("Litecoin", "LTC Network", R.drawable.ltc, Color(0xFF345D9D)) {
-                    nav.navigate(Routes.DEPOSIT)
+                    nav.navigate("${Routes.DEPOSIT}?crypto=ltc")
                 }
                 MethodCard("Nexa User", "0% fee", R.drawable.nexa_logo, NexaGreen) {
-                    nav.navigate(Routes.MYQR)
+                    nav.navigate("${Routes.DEPOSIT}?crypto=nexa")
                 }
             }
 
-            // ══════════ RECENT TRANSACTIONS ══════════
+            // RECENT TRANSACTIONS
             Spacer(Modifier.height(24.dp))
             Box(Modifier.padding(horizontal = 20.dp)) {
                 SectionHeader(
