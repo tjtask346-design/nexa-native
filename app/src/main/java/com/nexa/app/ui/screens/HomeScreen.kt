@@ -42,6 +42,7 @@ import com.nexa.app.ui.components.NexaFabSheet
 import com.nexa.app.ui.components.QuickAction
 import com.nexa.app.ui.components.SectionHeader
 import com.nexa.app.ui.components.TxRow
+import com.nexa.app.ui.components.UserAvatar
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.delay
 import java.util.Calendar
@@ -55,7 +56,6 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var loading by remember { mutableStateOf(true) }
     var showFabSheet by remember { mutableStateOf(false) }
 
-    // ═══ Unread notification count (via polling) ═══
     var unreadCount by remember { mutableStateOf(0) }
     var lastSeenCount by remember { mutableStateOf(0) }
 
@@ -67,7 +67,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         repo.myTransactions().onSuccess { txs = it.transactions }
     }
 
-    // ═══ POLLING for notifications every 15 seconds ═══
+    // Polling for notifications
     LaunchedEffect(Unit) {
         while (true) {
             try {
@@ -75,8 +75,6 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 if (res.isSuccess) {
                     val unread = res.getOrNull()?.unread ?: 0
                     unreadCount = unread
-
-                    // If new notification arrived (and not first check), show toast
                     if (lastSeenCount > 0 && unread > lastSeenCount) {
                         val latest = res.getOrNull()?.notifications?.firstOrNull()
                         if (latest != null) {
@@ -90,7 +88,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     lastSeenCount = unread
                 }
             } catch (_: Exception) { }
-            delay(15_000)  // 15 seconds
+            delay(15_000)
         }
     }
 
@@ -122,19 +120,19 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 20.dp)
         ) {
-            // ═══ TOP BAR ═══
+            // ══════════ TOP BAR ══════════
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))) {
-                    Image(
-                        painterResource(R.drawable.nexa_logo),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+                // ═══ User avatar (was Nexa logo) ═══
+                UserAvatar(
+                    prefs = prefs,
+                    size = 42.dp,
+                    cornerRadius = 14.dp
+                )
+
                 Column(Modifier.weight(1f)) {
                     Text(
                         "Welcome back 👋",
@@ -148,7 +146,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     )
                 }
 
-                // ═══ BELL ICON with unread badge ═══
+                // Bell with badge
                 Box(
                     Modifier
                         .size(40.dp)
@@ -158,9 +156,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
-                        ) {
-                            nav.navigate(Routes.NOTIFICATIONS)
-                        },
+                        ) { nav.navigate(Routes.NOTIFICATIONS) },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -169,7 +165,6 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                         tint = NexaText,
                         modifier = Modifier.size(19.dp)
                     )
-                    // Red badge with count
                     if (unreadCount > 0) {
                         Box(
                             Modifier
@@ -191,7 +186,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 }
             }
 
-            // ═══ BALANCE CARD ═══
+            // ══════════ BALANCE CARD ══════════
             BalanceCard(
                 balance = balance,
                 hidden = hidden,
@@ -201,7 +196,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
 
-            // ═══ QUICK ACTIONS ═══
+            // ══════════ QUICK ACTIONS ══════════
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -220,7 +215,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 }
             }
 
-            // ═══ QUICK DEPOSIT ═══
+            // ══════════ QUICK DEPOSIT ══════════
             Spacer(Modifier.height(24.dp))
             Box(Modifier.padding(horizontal = 20.dp)) { SectionHeader("Quick Deposit") }
             Spacer(Modifier.height(12.dp))
@@ -242,7 +237,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 }
             }
 
-            // ═══ RECENT TRANSACTIONS ═══
+            // ══════════ RECENT TRANSACTIONS ══════════
             Spacer(Modifier.height(24.dp))
             Box(Modifier.padding(horizontal = 20.dp)) {
                 SectionHeader(
