@@ -45,6 +45,7 @@ fun VerifyTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 busy = false
                 if (r.success && r.token != null) {
                     repo.saveSession(r.token, r.user)
+                    prefs.kycStatus = r.user?.kycStatus ?: "unverified"
                     AuthState.reset()
                     nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
                 } else {
@@ -68,49 +69,89 @@ fun VerifyTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         }
     }
 
-    Column(Modifier.fillMaxSize().background(NexaBg).padding(horizontal = 24.dp)) {
-        Spacer(Modifier.height(22.dp))
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(NexaBg)
+            .padding(horizontal = 24.dp)
+    ) {
+        // ═══ Back button ═══
+        Spacer(Modifier.height(24.dp))
         NexaIconButton(onClick = {
             AuthState.reset()
             nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
         }) {
             Text("←", color = NexaText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
+
+        // ═══ Centered content ═══
         Column(
-            Modifier.weight(1f).fillMaxWidth(),
+            Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(30.dp))
             Box(
-                Modifier.size(84.dp).clip(RoundedCornerShape(26.dp))
-                    .background(Brush.linearGradient(listOf(NexaGreen.copy(alpha = 0.15f), NexaTeal.copy(alpha = 0.12f))))
-                    .border(1.dp, NexaGreen.copy(alpha = 0.3f), RoundedCornerShape(26.dp)),
+                Modifier
+                    .size(60.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                NexaGreen.copy(alpha = 0.16f),
+                                NexaTeal.copy(alpha = 0.12f)
+                            )
+                        )
+                    )
+                    .border(1.dp, NexaGreen.copy(alpha = 0.28f), RoundedCornerShape(18.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.Lock, null, tint = NexaGreen, modifier = Modifier.size(40.dp))
+                Icon(Icons.Filled.Lock, null, tint = NexaGreen, modifier = Modifier.size(28.dp))
             }
-            Spacer(Modifier.height(22.dp))
+
+            Spacer(Modifier.height(16.dp))
             Text(
-                "Two-Factor Code",
-                color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp
+                "Two-Factor Authentication",
+                color = NexaText,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 21.sp,
+                letterSpacing = (-0.4).sp,
+                textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "Open your authenticator app\nand enter the 6-digit code.",
-                color = NexaMuted, fontSize = 13.sp,
-                textAlign = TextAlign.Center, lineHeight = 19.sp
+                "Enter the 6-digit code from your\nauthenticator app",
+                color = NexaMuted,
+                fontSize = 12.5.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.Medium
             )
+
             Spacer(Modifier.height(28.dp))
+
             CodeInput6(value = code) { code = it.filter { c -> c.isDigit() }.take(6) }
+
             if (error != null) {
-                Spacer(Modifier.height(16.dp))
-                Text(error!!, color = NexaRed, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    error!!,
+                    color = NexaRed,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
+                )
             }
             if (busy) {
-                Spacer(Modifier.height(12.dp))
-                Text("Verifying…", color = NexaGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Verifying…",
+                    color = NexaGreen,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
-        Spacer(Modifier.height(30.dp))
     }
 }
