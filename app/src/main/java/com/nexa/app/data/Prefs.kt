@@ -49,5 +49,24 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("fcmTokenSynced", false)
         set(v) = sp.edit().putBoolean("fcmTokenSynced", v).apply()
 
+    var accountNumber: String?
+        get() = sp.getString("accountNumber", null)
+        set(v) = sp.edit().putString("accountNumber", v).apply()
+
+    /** Full wipe — used for "Reset Demo" or account switch */
     fun clear() = sp.edit().clear().apply()
+
+    /**
+     * Logout — preserves device-level data (avatar, fcm token, account number)
+     * so user sees same avatar when they login back.
+     */
+    fun logout() {
+        val savedAvatar = avatarUrl
+        val savedFcm = fcmToken
+        val savedAccount = accountNumber
+        sp.edit().clear().apply()
+        avatarUrl = savedAvatar
+        fcmToken = savedFcm
+        accountNumber = savedAccount
+    }
 }
