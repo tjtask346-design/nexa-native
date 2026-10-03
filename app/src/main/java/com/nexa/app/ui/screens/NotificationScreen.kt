@@ -10,11 +10,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TrendingDown
@@ -25,8 +23,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -35,6 +31,7 @@ import androidx.navigation.NavController
 import com.nexa.app.data.NotificationItem
 import com.nexa.app.data.Repository
 import com.nexa.app.ui.theme.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -46,28 +43,34 @@ fun NotificationsScreen(nav: NavController, repo: Repository) {
     var notifications by remember { mutableStateOf<List<NotificationItem>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    fun reload() {
-        loading = true
-        error = null
-        scope.launch {
-            repo.getNotifications()
-                .onSuccess {
-                    notifications = it.notifications
-                    loading = false
-                }
-                .onFailure {
-                    error = it.message
-                    loading = false
-                }
+    suspend fun load() {
+        try {
+            val res = repo.getNotifications()
+            if (res.isSuccess) {
+                notifications = res.getOrNull()?.notifications ?: emptyList()
+                error = null
+            } else {
+                error = res.exceptionOrNull()?.message
+            }
+        } catch (e: Exception) {
+            error = e.message
+        }
+        loading = false
+    }
+
+    // Initial load
+    LaunchedEffect(Unit) { load() }
+
+    // ═══ Auto-refresh every 10 seconds ═══
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(10_000)
+            load()
         }
     }
 
-    LaunchedEffect(Unit) { reload() }
-
     Column(
-        Modifier
-            .fillMaxSize()
-            .background(NexaBg)
+        Modifier.fillMaxSize().background(NexaBg)
     ) {
         // ═══ Header ═══
         Row(
@@ -107,7 +110,7 @@ fun NotificationsScreen(nav: NavController, repo: Repository) {
                         ) {
                             scope.launch {
                                 repo.markAllNotificationsRead()
-                                reload()
+                                load()
                             }
                         }
                         .padding(horizontal = 10.dp, vertical = 7.dp)
@@ -123,21 +126,6 @@ fun NotificationsScreen(nav: NavController, repo: Repository) {
         when {
             loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text("Loading…", color = NexaMuted, fontSize = 13.sp)
-            }
-
-            error != null -> Box(Modifier.fillMaxSize().padding(28.dp), Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(error!!, color = NexaRed, fontSize = 13.sp, textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        "Tap to retry",
-                        color = NexaGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { reload() }
-                    )
-                }
             }
 
             notifications.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -186,15 +174,13 @@ fun NotificationsScreen(nav: NavController, repo: Repository) {
                         onMarkRead = {
                             scope.launch {
                                 repo.markNotificationRead(n.id ?: "")
-                                notifications = notifications.map {
-                                    if (it.id == n.id) it.copy(read = true) else it
-                                }
+                                load()
                             }
                         },
                         onDelete = {
                             scope.launch {
                                 repo.deleteNotification(n.id ?: "")
-                                notifications = notifications.filter { it.id != n.id }
+                                load()
                             }
                         }
                     )
