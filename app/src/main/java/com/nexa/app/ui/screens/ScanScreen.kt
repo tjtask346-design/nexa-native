@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -47,7 +48,6 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
     val scope = rememberCoroutineScope()
     var cameraCancelled by remember { mutableStateOf(false) }
 
-    // ═══ Handle scanned value → Send screen ═══
     fun handleScanned(value: String) {
         val recipient = parseRecipient(value)
         if (recipient.isBlank()) {
@@ -60,7 +60,6 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
         }
     }
 
-    // ═══ Camera scanner ═══
     val cameraLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         if (result.contents != null) {
             handleScanned(result.contents)
@@ -69,7 +68,6 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
         }
     }
 
-    // ═══ Gallery picker ═══
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -97,12 +95,9 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
         cameraLauncher.launch(options)
     }
 
-    // ═══ Immediately launch camera ═══
+    // Immediately launch camera
     LaunchedEffect(Unit) { launchCamera() }
 
-    // ═══════════════════════════════════════════
-    // MINIMAL UI — only shown if user cancels camera
-    // ═══════════════════════════════════════════
     Box(
         Modifier.fillMaxSize().background(NexaBg),
         contentAlignment = Alignment.Center
@@ -136,7 +131,6 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
 
                 Spacer(Modifier.height(8.dp))
 
-                // Camera button
                 Box(
                     Modifier.fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
@@ -161,7 +155,6 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
                     }
                 }
 
-                // Gallery button
                 Box(
                     Modifier.fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
@@ -183,7 +176,6 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
                     }
                 }
 
-                // Cancel
                 Text(
                     "Cancel",
                     color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
@@ -194,25 +186,18 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
                 )
             }
         }
-        // else: blank screen while camera is open
     }
 }
 
-// ═══════════════════════════════════════════════
-// Parse QR payload → extract recipient (account number)
-// ═══════════════════════════════════════════════
 private fun parseRecipient(raw: String): String {
     return try {
         val uri = Uri.parse(raw)
-        // Try account number first
         val acc = uri.getQueryParameter("acc") ?: ""
         if (acc.isNotBlank()) return acc
-        // Fallback to "to" (username) or email
         val to = uri.getQueryParameter("to") ?: ""
         if (to.isNotBlank()) return to.replace("@", "")
         val email = uri.getQueryParameter("email") ?: ""
         if (email.isNotBlank()) return email
-        // Last resort: if raw is just digits (account), use directly
         if (raw.all { it.isDigit() }) return raw
         ""
     } catch (e: Exception) { "" }
