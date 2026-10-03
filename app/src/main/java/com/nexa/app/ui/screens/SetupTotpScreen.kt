@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
@@ -40,7 +41,6 @@ import com.nexa.app.data.AuthState
 import com.nexa.app.data.Prefs
 import com.nexa.app.data.Repository
 import com.nexa.app.nav.Routes
-import com.nexa.app.ui.components.GradientButton
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -116,6 +116,7 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         }
     }
 
+    // Auto-verify
     LaunchedEffect(code) {
         if (code.length == 6 && code != lastSubmitted && !busy && !loading && error == null) {
             lastSubmitted = code
@@ -142,7 +143,10 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             Spacer(Modifier.height(20.dp))
             Text("Enable Two-Factor", color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
             Spacer(Modifier.height(8.dp))
-            Text("Scan with Google Authenticator or Authy", color = NexaMuted, fontSize = 13.sp, textAlign = TextAlign.Center)
+            Text(
+                "Scan with Google Authenticator or Authy",
+                color = NexaMuted, fontSize = 13.sp, textAlign = TextAlign.Center
+            )
             Spacer(Modifier.height(24.dp))
 
             when {
@@ -156,40 +160,60 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 ) { Text(error!!, color = NexaRed, fontSize = 12.5.sp) }
 
                 else -> {
-                    Box(Modifier.size(220.dp).clip(RoundedCornerShape(20.dp)).background(Color.White).padding(14.dp)) {
+                    Box(Modifier.size(200.dp).clip(RoundedCornerShape(20.dp)).background(Color.White).padding(14.dp)) {
                         if (qr != null) Image(qr.asImageBitmap(), "QR", modifier = Modifier.fillMaxSize())
                     }
                     Spacer(Modifier.height(16.dp))
                     Text("Can't scan? Enter manually:", color = NexaDim, fontSize = 11.5.sp)
                     Spacer(Modifier.height(8.dp))
+
+                    // Secret box
                     Box(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(NexaSurface)
                             .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(14.dp))
                             .padding(12.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
                             Text(
-                                secret, color = NexaText, fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f)
+                                secret, color = NexaText, fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.weight(1f)
                             )
                             Box(
                                 Modifier.clip(RoundedCornerShape(10.dp)).background(NexaGreen.copy(alpha = 0.13f))
-                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
                                         clipboard.setText(AnnotatedString(secret))
                                         Toast.makeText(ctx, "Copied", Toast.LENGTH_SHORT).show()
-                                    }.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
                                     Icon(Icons.Filled.ContentCopy, null, tint = NexaGreen, modifier = Modifier.size(12.dp))
                                     Text("Copy", color = NexaGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
                     }
-                    Spacer(Modifier.height(28.dp))
-                    Text("ENTER 6-DIGIT CODE", color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.6.sp)
+
+                    Spacer(Modifier.height(24.dp))
+                    Text(
+                        "ENTER 6-DIGIT CODE",
+                        color = NexaMuted, fontSize = 11.5.sp,
+                        fontWeight = FontWeight.ExtraBold, letterSpacing = 0.6.sp
+                    )
                     Spacer(Modifier.height(12.dp))
-                    CodeInput6(value = code) { code = it.filter { c -> c.isDigit() }.take(6) }
+
+                    CodeInput6(value = code, onChange = { code = it.filter { c -> c.isDigit() }.take(6) })
+
                     if (error != null) {
                         Spacer(Modifier.height(12.dp))
                         Text(error!!, color = NexaRed, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
@@ -198,13 +222,6 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                         Spacer(Modifier.height(12.dp))
                         Text("Verifying…", color = NexaGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    Spacer(Modifier.height(24.dp))
-                    GradientButton(
-                        text = "Verify & Enable",
-                        enabled = code.length == 6 && !busy,
-                        loading = busy,
-                        onClick = { verify(code) }
-                    )
                     Spacer(Modifier.height(30.dp))
                 }
             }
@@ -213,34 +230,33 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 }
 
 // ═══════════════════════════════════════════════
-// SHARED CODE INPUT — 6 boxes + Paste + custom dialpad
-// Used by SetupTotpScreen, VerifyTotpScreen, ResetPinScreen
+// CODE INPUT — 6 boxes + custom dialpad (Paste / 0 / Next)
 // ═══════════════════════════════════════════════
 @Composable
 fun CodeInput6(value: String, onChange: (String) -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
-    var showKeypad by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+
+        // ═══ 6 digit boxes ═══
         Row(
-            Modifier.fillMaxWidth().height(64.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            Modifier.fillMaxWidth().height(60.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             repeat(6) { i ->
                 Box(
                     Modifier
-                        .weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp))
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(14.dp))
                         .background(NexaSurface)
                         .border(
                             1.5.dp,
-                            if (i < value.length) NexaGreen.copy(alpha = 0.5f) else NexaBorder.copy(alpha = 0.09f),
+                            if (i < value.length) NexaGreen.copy(alpha = 0.5f)
+                            else NexaBorder.copy(alpha = 0.09f),
                             RoundedCornerShape(14.dp)
-                        )
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { showKeypad = !showKeypad },
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -251,105 +267,151 @@ fun CodeInput6(value: String, onChange: (String) -> Unit) {
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(24.dp))
 
-        Box(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                .background(NexaGreen.copy(alpha = 0.12f))
-                .border(1.dp, NexaGreen.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    val clip = clipboard.getText()?.text ?: ""
-                    val digits = clip.filter { it.isDigit() }.take(6)
-                    if (digits.isNotEmpty()) {
-                        onChange(digits)
-                        showKeypad = false
-                    } else {
-                        Toast.makeText(context, "No digits in clipboard", Toast.LENGTH_SHORT).show()
-                    }
-                }
-                .padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center
+        // ═══ Custom numeric dialpad ═══
+        Column(
+            Modifier
+                .widthIn(max = 300.dp)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Filled.ContentPaste, null, tint = NexaGreen, modifier = Modifier.size(16.dp))
-                Text("Paste from clipboard", color = NexaGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            }
-        }
-
-        if (showKeypad) {
-            Spacer(Modifier.height(16.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                val rows = listOf(
-                    listOf("1", "2", "3"),
-                    listOf("4", "5", "6"),
-                    listOf("7", "8", "9")
-                )
-                rows.forEach { row ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        row.forEach { digit ->
-                            CodeKeypadButton(
-                                digit = digit,
-                                modifier = Modifier.weight(1f),
-                                onClick = { if (value.length < 6) onChange(value + digit) }
-                            )
-                        }
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(
-                        Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(14.dp))
-                            .background(NexaSurface2)
-                            .border(1.dp, NexaBorder.copy(alpha = 0.15f), RoundedCornerShape(14.dp))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { if (value.isNotEmpty()) onChange(value.dropLast(1)) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Filled.Backspace, "Backspace", tint = NexaMuted, modifier = Modifier.size(24.dp))
-                    }
-                    CodeKeypadButton(
-                        digit = "0",
-                        modifier = Modifier.weight(1f),
-                        onClick = { if (value.length < 6) onChange(value + "0") }
-                    )
-                    Box(
-                        Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(14.dp))
-                            .background(if (value.length == 6) NexaGreen.copy(alpha = 0.2f) else NexaSurface2)
-                            .border(
-                                1.dp,
-                                if (value.length == 6) NexaGreen.copy(alpha = 0.5f) else NexaBorder.copy(alpha = 0.15f),
-                                RoundedCornerShape(14.dp)
-                            )
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showKeypad = false },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "Done",
-                            color = if (value.length == 6) NexaGreen else NexaMuted,
-                            fontWeight = FontWeight.Bold, fontSize = 13.sp
+            // Rows 1-9
+            val rows = listOf(
+                listOf("1", "2", "3"),
+                listOf("4", "5", "6"),
+                listOf("7", "8", "9")
+            )
+            rows.forEach { row ->
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    row.forEach { digit ->
+                        KeypadButton(
+                            digit = digit,
+                            modifier = Modifier.weight(1f),
+                            onClick = { if (value.length < 6) onChange(value + digit) }
                         )
                     }
                 }
             }
+
+            // ═══ Bottom row: PASTE / 0 / NEXT ═══
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // ─── PASTE button (was * position) ───
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(NexaGreen.copy(alpha = 0.10f))
+                        .border(1.dp, NexaGreen.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            val clip = clipboard.getText()?.text ?: ""
+                            val digits = clip.filter { it.isDigit() }.take(6)
+                            if (digits.isNotEmpty()) {
+                                onChange(digits)
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "No digits in clipboard",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.ContentPaste,
+                        contentDescription = "Paste",
+                        tint = NexaGreen,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                // ─── ZERO ───
+                KeypadButton(
+                    digit = "0",
+                    modifier = Modifier.weight(1f),
+                    onClick = { if (value.length < 6) onChange(value + "0") }
+                )
+
+                // ─── NEXT button (was # position) ───
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            if (value.length == 6) NexaGreen.copy(alpha = 0.18f)
+                            else NexaSurface2
+                        )
+                        .border(
+                            1.dp,
+                            if (value.length == 6) NexaGreen.copy(alpha = 0.5f)
+                            else NexaBorder.copy(alpha = 0.15f),
+                            RoundedCornerShape(14.dp)
+                        )
+                        .clickable(
+                            enabled = value.length == 6,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            // Backup — auto-verify handles this
+                            // User can tap for manual trigger if needed
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.ArrowForward,
+                        contentDescription = "Next",
+                        tint = if (value.length == 6) NexaGreen else NexaDim,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+        }
+
+        // ═══ Backspace helper (small, below dialpad) ═══
+        Spacer(Modifier.height(10.dp))
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    if (value.isNotEmpty()) onChange(value.dropLast(1))
+                }
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Icon(
+                Icons.Filled.Backspace,
+                contentDescription = "Backspace",
+                tint = NexaMuted,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
 
 @Composable
-private fun CodeKeypadButton(
+private fun KeypadButton(
     digit: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Box(
-        modifier.height(56.dp).clip(RoundedCornerShape(14.dp))
+        modifier
+            .height(52.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(NexaSurface)
             .border(1.dp, NexaBorder.copy(alpha = 0.15f), RoundedCornerShape(14.dp))
             .clickable(
@@ -359,6 +421,11 @@ private fun CodeKeypadButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Text(digit, color = NexaText, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            digit,
+            color = NexaText,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
