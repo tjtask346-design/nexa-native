@@ -78,7 +78,6 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
 
     val hardwareAvailable = remember { BiometricHelper.isAvailable(ctx) }
 
-    // ═══ Support → open email app ═══
     fun openSupportEmail() {
         try {
             val intent = Intent(Intent.ACTION_SENDTO).apply {
@@ -88,7 +87,8 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                     Intent.EXTRA_TEXT,
                     "Hi Nexa Support,\n\n" +
                         "My registered email: ${prefs.email ?: "—"}\n" +
-                        "Account name: $displayName\n\n" +
+                        "Account name: $displayName\n" +
+                        "Account number: ${prefs.accountNumber ?: "—"}\n\n" +
                         "My issue:\n"
                 )
             }
@@ -116,12 +116,11 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                     modifier = Modifier.padding(start = 20.dp, top = 30.dp, bottom = 16.dp)
                 )
 
-                // ═══════════ HERO — Avatar + Name + Edit ═══════════
+                // ═══ HERO — Avatar + Name + Edit ═══
                 Column(
                     Modifier.fillMaxWidth().padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Avatar (tap to edit)
                     Box(
                         Modifier
                             .size(86.dp)
@@ -147,7 +146,6 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
-                        // Camera badge
                         Box(
                             Modifier
                                 .align(Alignment.BottomEnd)
@@ -172,7 +170,6 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
 
                     Spacer(Modifier.height(12.dp))
 
-                    // Edit Profile chip
                     Box(
                         Modifier
                             .clip(RoundedCornerShape(11.dp))
@@ -204,7 +201,7 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                     }
                 }
 
-                // ═══════════ MENU ROWS ═══════════
+                // ═══ MENU ROWS ═══
                 Column(
                     Modifier
                         .padding(horizontal = 20.dp)
@@ -281,14 +278,11 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                     ProfileRow(Icons.Filled.Shield, NexaGreen, "Two-Factor Auth", "Enabled — Google Authenticator") {
                         Toast.makeText(ctx, "2FA is always on for security", Toast.LENGTH_SHORT).show()
                     }
-
-                    // ═══ SUPPORT — NOW OPENS EMAIL ═══
                     ProfileRow(Icons.Filled.SupportAgent, NexaTeal, "Support", "Chat with us via email") {
                         openSupportEmail()
                     }
-
                     ProfileRow(Icons.AutoMirrored.Filled.Logout, NexaRed, "Log Out", "Sign out of your account") {
-                        prefs.clear()
+                        prefs.logout()   // ← preserves avatar + fcm + account number
                         nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
                     }
                 }
@@ -315,7 +309,6 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
             )
         }
 
-        // ═══════════ EDIT PROFILE SHEET ═══════════
         if (showEditSheet) {
             EditProfileSheet(
                 ctx = ctx,
@@ -333,7 +326,6 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
             )
         }
 
-        // ═══════════ PIN fallback modal ═══════════
         TransactionPinModal(
             visible = pinVerifyMode != null,
             title = if (pinVerifyMode == "enable") "Enable fingerprint" else "Disable fingerprint",
@@ -357,9 +349,6 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
     }
 }
 
-// ═══════════════════════════════════════════════
-// EDIT PROFILE BOTTOM SHEET
-// ═══════════════════════════════════════════════
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditProfileSheet(
@@ -406,7 +395,6 @@ private fun EditProfileSheet(
                 .padding(horizontal = 24.dp)
                 .padding(top = 24.dp, bottom = 32.dp)
         ) {
-            // grabber
             Box(
                 Modifier
                     .width(38.dp)
@@ -424,7 +412,6 @@ private fun EditProfileSheet(
 
             Spacer(Modifier.height(24.dp))
 
-            // ═══ Avatar picker ═══
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Box(
                     Modifier
@@ -465,7 +452,6 @@ private fun EditProfileSheet(
 
             Spacer(Modifier.height(26.dp))
 
-            // ═══ Nickname ═══
             Text(
                 "NICKNAME",
                 color = NexaMuted, fontSize = 11.sp,
@@ -518,7 +504,6 @@ private fun EditProfileSheet(
 
             Spacer(Modifier.height(28.dp))
 
-            // ═══ Save ═══
             val enabled = name.trim().isNotEmpty()
             Box(
                 Modifier
@@ -546,7 +531,6 @@ private fun EditProfileSheet(
 
             Spacer(Modifier.height(12.dp))
 
-            // ═══ Cancel ═══
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -565,9 +549,6 @@ private fun EditProfileSheet(
     }
 }
 
-// ═══════════════════════════════════════════════
-// BITMAP LOADER
-// ═══════════════════════════════════════════════
 private fun loadBitmap(ctx: Context, uriStr: String?): Bitmap? {
     if (uriStr.isNullOrBlank()) return null
     return try {
@@ -576,9 +557,6 @@ private fun loadBitmap(ctx: Context, uriStr: String?): Bitmap? {
     } catch (e: Exception) { null }
 }
 
-// ═══════════════════════════════════════════════
-// ROW COMPONENTS
-// ═══════════════════════════════════════════════
 @Composable
 private fun ProfileRow(
     icon: ImageVector,
