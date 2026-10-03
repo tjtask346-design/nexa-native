@@ -10,7 +10,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -109,28 +114,19 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                 ) + fadeOut(animationSpec = tween(200))
             }
         ) {
-
-            // ═══════════════════════════════════════════════
-            // SPLASH — validates session before navigating
-            // ═══════════════════════════════════════════════
+            // SPLASH with session validation
             composable(Routes.SPLASH) {
                 var splashTimePassed by remember { mutableStateOf(false) }
                 var validationDone by remember { mutableStateOf(false) }
                 var destination by remember { mutableStateOf<String?>(null) }
 
-                // Validate token with backend
                 LaunchedEffect(Unit) {
                     val savedToken = prefs.token
-
                     if (!savedToken.isNullOrBlank()) {
-                        // Ask backend: is this session still valid?
                         val res = repo.me()
-
                         if (res.isSuccess && res.getOrNull()?.success == true) {
-                            // Session valid → go to PIN
                             destination = Routes.PIN
                         } else {
-                            // User deleted OR token expired → force logout
                             try { repo.clearSession() } catch (_: Exception) { }
                             destination = Routes.LOGIN
                         }
@@ -140,7 +136,6 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                     validationDone = true
                 }
 
-                // Navigate only after BOTH splash delay AND validation finish
                 LaunchedEffect(splashTimePassed, validationDone, destination) {
                     if (splashTimePassed && validationDone && destination != null) {
                         nav.navigate(destination!!) {
@@ -149,9 +144,7 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                     }
                 }
 
-                SplashScreen {
-                    splashTimePassed = true
-                }
+                SplashScreen { splashTimePassed = true }
             }
 
             composable(Routes.LOGIN)         { LoginScreen(nav, prefs) }
@@ -172,7 +165,25 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
             composable(Routes.WITHDRAW)      { WithdrawScreen(nav, prefs, repo) }
             composable(Routes.MYQR)          { MyQrScreen(nav, prefs) }
             composable(Routes.SCAN)          { ScanScreen(nav, prefs) }
-            composable(Routes.SEND)          { SendScreen(nav, prefs, repo) }
+
+            // ═══ SEND with optional recipient prefill ═══
+            composable(
+                route = Routes.SEND + "?recipient={recipient}",
+                arguments = listOf(
+                    navArgument("recipient") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    }
+                )
+            ) { entry ->
+                SendScreen(
+                    nav = nav,
+                    prefs = prefs,
+                    repo = repo,
+                    prefilledRecipient = entry.arguments?.getString("recipient") ?: ""
+                )
+            }
+
             composable(Routes.KYC)           { KycScreen(nav, prefs, repo) }
 
             composable(
