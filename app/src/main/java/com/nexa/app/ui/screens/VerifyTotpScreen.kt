@@ -22,7 +22,6 @@ import com.nexa.app.data.AuthState
 import com.nexa.app.data.Prefs
 import com.nexa.app.data.Repository
 import com.nexa.app.nav.Routes
-import com.nexa.app.ui.components.GradientButton
 import com.nexa.app.ui.components.NexaIconButton
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -45,7 +44,8 @@ fun VerifyTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             repo.loginPin(email, pin, otp).onSuccess { r ->
                 busy = false
                 if (r.success && r.token != null) {
-                    repo.saveSession(r.token, r.user); AuthState.reset()
+                    repo.saveSession(r.token, r.user)
+                    AuthState.reset()
                     nav.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
                 } else {
                     error = r.message ?: "Invalid code"
@@ -76,8 +76,11 @@ fun VerifyTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         }) {
             Text("←", color = NexaText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(Modifier.height(40.dp))
+        Column(
+            Modifier.weight(1f).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(Modifier.height(30.dp))
             Box(
                 Modifier.size(84.dp).clip(RoundedCornerShape(26.dp))
                     .background(Brush.linearGradient(listOf(NexaGreen.copy(alpha = 0.15f), NexaTeal.copy(alpha = 0.12f))))
@@ -87,13 +90,17 @@ fun VerifyTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 Icon(Icons.Filled.Lock, null, tint = NexaGreen, modifier = Modifier.size(40.dp))
             }
             Spacer(Modifier.height(22.dp))
-            Text("Two-Factor Code", color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
+            Text(
+                "Two-Factor Code",
+                color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp
+            )
             Spacer(Modifier.height(8.dp))
             Text(
                 "Open your authenticator app\nand enter the 6-digit code.",
-                color = NexaMuted, fontSize = 13.sp, textAlign = TextAlign.Center, lineHeight = 19.sp
+                color = NexaMuted, fontSize = 13.sp,
+                textAlign = TextAlign.Center, lineHeight = 19.sp
             )
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(28.dp))
             CodeInput6(value = code) { code = it.filter { c -> c.isDigit() }.take(6) }
             if (error != null) {
                 Spacer(Modifier.height(16.dp))
@@ -104,12 +111,6 @@ fun VerifyTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 Text("Verifying…", color = NexaGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
-        GradientButton(
-            text = "Verify & Sign In",
-            enabled = code.length == 6 && !busy,
-            loading = busy,
-            onClick = { verify(code) },
-            modifier = Modifier.padding(bottom = 32.dp)
-        )
+        Spacer(Modifier.height(30.dp))
     }
 }
