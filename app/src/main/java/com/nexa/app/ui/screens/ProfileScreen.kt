@@ -55,26 +55,30 @@ import androidx.fragment.app.FragmentActivity
 import androidx.navigation.NavController
 import com.nexa.app.R
 import com.nexa.app.data.BiometricHelper
+import com.nexa.app.data.CloudinaryHelper
 import com.nexa.app.data.Prefs
+import com.nexa.app.data.Repository
 import com.nexa.app.nav.Routes
 import com.nexa.app.ui.components.NexaBottomBar
 import com.nexa.app.ui.components.NexaFabSheet
 import com.nexa.app.ui.components.NexaSwitch
 import com.nexa.app.ui.components.TransactionPinModal
 import com.nexa.app.ui.theme.*
-import java.io.File
+import kotlinx.coroutines.launch
 
 @Composable
-fun ProfileScreen(nav: NavController, prefs: Prefs) {
+fun ProfileScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     val ctx = LocalContext.current
     val activity = ctx as? FragmentActivity
+    val scope = rememberCoroutineScope()
 
     var showFabSheet by remember { mutableStateOf(false) }
     var showEditSheet by remember { mutableStateOf(false) }
     var biometricOn by remember { mutableStateOf(prefs.biometricEnabled) }
     var pinVerifyMode by remember { mutableStateOf<String?>(null) }
     var displayName by remember { mutableStateOf(prefs.name ?: "User") }
-    var avatarUri by remember { mutableStateOf(prefs.avatarUrl) }
+    var avatarUrl by remember { mutableStateOf(prefs.avatarUrl) }
+    var uploading by remember { mutableStateOf(false) }
 
     val hardwareAvailable = remember { BiometricHelper.isAvailable(ctx) }
 
@@ -94,21 +98,14 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
             }
             ctx.startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(
-                ctx,
-                "No email app. Email: forsell395@gmail.com",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(ctx, "No email app. Email: forsell395@gmail.com", Toast.LENGTH_LONG).show()
         }
     }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Column(
-                Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(bottom = 20.dp)
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 20.dp)
             ) {
                 Text(
                     "Profile",
@@ -116,7 +113,7 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                     modifier = Modifier.padding(start = 20.dp, top = 30.dp, bottom = 16.dp)
                 )
 
-                // ═══ HERO — Avatar + Name + Edit ═══
+                // HERO
                 Column(
                     Modifier.fillMaxWidth().padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -129,28 +126,13 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
-                            ) { showEditSheet = true }
+                            ) { if (!uploading) showEditSheet = true }
                     ) {
-                        val bmp = remember(avatarUri) { loadBitmap(ctx, avatarUri) }
-                        if (bmp != null) {
-                            Image(
-                                bitmap = bmp.asImageBitmap(),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Image(
-                                painterResource(R.drawable.nexa_logo),
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
+                        UserAvatarImage(ctx = ctx, url = avatarUrl)
                         Box(
                             Modifier
                                 .align(Alignment.BottomEnd)
-                                .size(26.dp)
-                                .clip(CircleShape)
+                                .size(26.dp).clip(CircleShape)
                                 .background(NexaGreen)
                                 .border(2.dp, NexaBg, CircleShape),
                             contentAlignment = Alignment.Center
@@ -178,30 +160,23 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
-                            ) { showEditSheet = true }
+                            ) { if (!uploading) showEditSheet = true }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(
-                                Icons.Filled.Edit,
-                                contentDescription = null,
-                                tint = NexaGreen,
-                                modifier = Modifier.size(13.dp)
-                            )
+                            Icon(Icons.Filled.Edit, null, tint = NexaGreen, modifier = Modifier.size(13.dp))
                             Text(
-                                "Edit Profile",
-                                color = NexaGreen,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 11.5.sp
+                                if (uploading) "Uploading…" else "Edit Profile",
+                                color = NexaGreen, fontWeight = FontWeight.ExtraBold, fontSize = 11.5.sp
                             )
                         }
                     }
                 }
 
-                // ═══ MENU ROWS ═══
+                // MENU
                 Column(
                     Modifier
                         .padding(horizontal = 20.dp)
@@ -211,7 +186,6 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                     ProfileRow(Icons.Filled.QrCode, NexaGreen, "My QR Code", "Receive instant Nexa payments") {
                         nav.navigate(Routes.MYQR)
                     }
-
                     FingerprintRow(
                         icon = Icons.Filled.Fingerprint,
                         tint = if (biometricOn) NexaGreen else NexaTeal,
@@ -248,9 +222,7 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                                             }
                                         }
                                     )
-                                } else {
-                                    pinVerifyMode = "enable"
-                                }
+                                } else pinVerifyMode = "enable"
                             } else {
                                 if (activity != null) {
                                     BiometricHelper.prompt(
@@ -271,7 +243,6 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                             }
                         }
                     )
-
                     ProfileRow(Icons.Filled.VerifiedUser, NexaGreen, "KYC Verification", "Complete your verification") {
                         nav.navigate(Routes.KYC)
                     }
@@ -282,7 +253,7 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
                         openSupportEmail()
                     }
                     ProfileRow(Icons.AutoMirrored.Filled.Logout, NexaRed, "Log Out", "Sign out of your account") {
-                        prefs.logout()   // ← preserves avatar + fcm + account number
+                        prefs.logout()
                         nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
                     }
                 }
@@ -313,15 +284,33 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
             EditProfileSheet(
                 ctx = ctx,
                 currentName = displayName,
-                currentAvatarUri = avatarUri,
-                onDismiss = { showEditSheet = false },
-                onSave = { newName, newUri ->
+                currentAvatarUrl = avatarUrl,
+                uploading = uploading,
+                onDismiss = { if (!uploading) showEditSheet = false },
+                onPickImage = { uri ->
+                    scope.launch {
+                        uploading = true
+                        try {
+                            val url = CloudinaryHelper.uploadKycImage(ctx, uri, "avatar")
+                            val res = repo.updateAvatar(url)
+                            if (res.isSuccess) {
+                                prefs.avatarUrl = url
+                                avatarUrl = url
+                                Toast.makeText(ctx, "Photo updated ✓", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(ctx, res.exceptionOrNull()?.message ?: "Upload failed", Toast.LENGTH_LONG).show()
+                            }
+                        } catch (e: Exception) {
+                            Toast.makeText(ctx, "Upload error: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                        uploading = false
+                    }
+                },
+                onSaveName = { newName ->
                     prefs.name = newName
-                    prefs.avatarUrl = newUri
                     displayName = newName
-                    avatarUri = newUri
                     showEditSheet = false
-                    Toast.makeText(ctx, "Profile updated ✓", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, "Name updated ✓", Toast.LENGTH_SHORT).show()
                 }
             )
         }
@@ -349,38 +338,67 @@ fun ProfileScreen(nav: NavController, prefs: Prefs) {
     }
 }
 
+// ═══ Avatar loader — supports HTTP URLs and local files ═══
+@Composable
+private fun UserAvatarImage(ctx: Context, url: String?) {
+    if (url.isNullOrBlank()) {
+        Image(
+            painterResource(R.drawable.nexa_logo),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize()
+        )
+        return
+    }
+
+    val bmp = remember(url) { loadBitmapFromUrl(ctx, url) }
+    if (bmp != null) {
+        Image(
+            bitmap = bmp.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+    } else {
+        Image(
+            painterResource(R.drawable.nexa_logo),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+private fun loadBitmapFromUrl(ctx: Context, url: String): Bitmap? {
+    return try {
+        if (url.startsWith("http")) {
+            val connection = java.net.URL(url).openConnection()
+            connection.doInput = true
+            connection.connect()
+            connection.getInputStream().use { BitmapFactory.decodeStream(it) }
+        } else {
+            val uri = Uri.parse(url)
+            ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+        }
+    } catch (e: Exception) { null }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditProfileSheet(
     ctx: Context,
     currentName: String,
-    currentAvatarUri: String?,
+    currentAvatarUrl: String?,
+    uploading: Boolean,
     onDismiss: () -> Unit,
-    onSave: (String, String?) -> Unit
+    onPickImage: (Uri) -> Unit,
+    onSaveName: (String) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var name by remember { mutableStateOf(currentName) }
-    var avatarUri by remember { mutableStateOf(currentAvatarUri) }
-    var error by remember { mutableStateOf<String?>(null) }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri ->
-        if (uri != null) {
-            try {
-                val dest = File(
-                    ctx.filesDir,
-                    "profile_avatar_${System.currentTimeMillis()}.jpg"
-                )
-                ctx.contentResolver.openInputStream(uri)?.use { input ->
-                    dest.outputStream().use { output -> input.copyTo(output) }
-                }
-                avatarUri = dest.toURI().toString()
-                error = null
-            } catch (e: Exception) {
-                error = "Failed to load image"
-            }
-        }
+        if (uri != null) onPickImage(uri)
     }
 
     ModalBottomSheet(
@@ -396,55 +414,46 @@ private fun EditProfileSheet(
                 .padding(top = 24.dp, bottom = 32.dp)
         ) {
             Box(
-                Modifier
-                    .width(38.dp)
-                    .height(4.dp)
+                Modifier.width(38.dp).height(4.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .background(NexaSurface3)
                     .align(Alignment.CenterHorizontally)
             )
 
             Spacer(Modifier.height(20.dp))
-
             Text("Edit Profile", color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
             Spacer(Modifier.height(4.dp))
             Text("Change nickname and profile picture", color = NexaMuted, fontSize = 12.5.sp)
 
             Spacer(Modifier.height(24.dp))
 
+            // Avatar picker
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Box(
                     Modifier
-                        .size(100.dp)
-                        .clip(CircleShape)
+                        .size(100.dp).clip(CircleShape)
                         .background(Brush.linearGradient(listOf(NexaGreen, NexaTeal)))
                         .clickable(
+                            enabled = !uploading,
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { picker.launch("image/*") },
                     contentAlignment = Alignment.Center
                 ) {
-                    val bmp = remember(avatarUri) { loadBitmap(ctx, avatarUri) }
-                    if (bmp != null) {
-                        Image(
-                            bitmap = bmp.asImageBitmap(),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Icon(
-                            Icons.Filled.PhotoCamera,
-                            contentDescription = null,
-                            tint = Color(0xFF04140D),
-                            modifier = Modifier.size(36.dp)
-                        )
+                    UserAvatarImage(ctx = ctx, url = currentAvatarUrl)
+                    if (uploading) {
+                        Box(
+                            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Uploading…", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                "Tap to change photo",
+                if (uploading) "Uploading photo…" else "Tap to change photo",
                 color = NexaMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center
@@ -463,22 +472,15 @@ private fun EditProfileSheet(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(NexaSurface2)
-                    .border(
-                        1.5.dp,
-                        if (error != null) NexaRed.copy(alpha = 0.6f)
-                        else NexaBorder.copy(alpha = 0.15f),
-                        RoundedCornerShape(16.dp)
-                    )
+                    .border(1.5.dp, NexaBorder.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
                     .padding(horizontal = 16.dp, vertical = 15.dp)
             ) {
                 BasicTextField(
                     value = name,
-                    onValueChange = { name = it.take(24); error = null },
+                    onValueChange = { name = it.take(24) },
                     singleLine = true,
                     textStyle = TextStyle(
-                        color = NexaText,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold
+                        color = NexaText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold
                     ),
                     cursorBrush = SolidColor(NexaGreen),
                     modifier = Modifier.fillMaxWidth()
@@ -491,16 +493,11 @@ private fun EditProfileSheet(
                     }
                 }
             }
-            if (error != null) {
-                Spacer(Modifier.height(8.dp))
-                Text(error!!, color = NexaRed, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            } else {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "${name.length}/24 characters",
-                    color = NexaDim, fontSize = 11.sp, fontWeight = FontWeight.Medium
-                )
-            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "${name.length}/24 characters",
+                color = NexaDim, fontSize = 11.sp, fontWeight = FontWeight.Medium
+            )
 
             Spacer(Modifier.height(28.dp))
 
@@ -514,15 +511,15 @@ private fun EditProfileSheet(
                         else Brush.horizontalGradient(listOf(NexaDim, NexaDim))
                     )
                     .clickable(
-                        enabled = enabled,
+                        enabled = enabled && !uploading,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { onSave(name.trim(), avatarUri) }
+                    ) { onSaveName(name.trim()) }
                     .padding(vertical = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "Save Changes",
+                    "Save Name",
                     color = Color(0xFF04140D),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp
@@ -537,6 +534,7 @@ private fun EditProfileSheet(
                     .clip(RoundedCornerShape(16.dp))
                     .background(NexaSurface2)
                     .clickable(
+                        enabled = !uploading,
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) { onDismiss() }
@@ -547,14 +545,6 @@ private fun EditProfileSheet(
             }
         }
     }
-}
-
-private fun loadBitmap(ctx: Context, uriStr: String?): Bitmap? {
-    if (uriStr.isNullOrBlank()) return null
-    return try {
-        val uri = Uri.parse(uriStr)
-        ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-    } catch (e: Exception) { null }
 }
 
 @Composable
@@ -636,10 +626,6 @@ private fun FingerprintRow(
             )
             Text(subtitle, color = NexaDim, fontSize = 11.sp)
         }
-        NexaSwitch(
-            checked = checked,
-            onCheckedChange = onToggle,
-            enabled = enabled
-        )
+        NexaSwitch(checked = checked, onCheckedChange = onToggle, enabled = enabled)
     }
 }
