@@ -131,7 +131,6 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     ) {
         Spacer(Modifier.height(36.dp))
 
-        // ═══ Header ═══
         Column(
             Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -195,7 +194,6 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             }
 
             else -> {
-                // ═══ QR CODE ═══
                 Column(
                     Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -214,7 +212,6 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
                     Spacer(Modifier.height(16.dp))
 
-                    // ═══ SECRET ═══
                     Text(
                         "Can't scan? Enter manually",
                         color = NexaDim, fontSize = 11.sp, fontWeight = FontWeight.Medium
@@ -268,7 +265,6 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
                 Spacer(Modifier.height(28.dp))
 
-                // ═══ CODE INPUT ═══
                 Text(
                     "ENTER 6-DIGIT CODE",
                     color = NexaMuted,
@@ -280,6 +276,7 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
                 Spacer(Modifier.height(14.dp))
 
+                // ═══ CodeInput6 call — trailing lambda goes to onChange now ═══
                 CodeInput6(value = code) { code = it.filter { c -> c.isDigit() }.take(6) }
 
                 if (error != null) {
@@ -310,13 +307,14 @@ fun SetupTotpScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 }
 
 // ═══════════════════════════════════════════════
-// SHARED CODE INPUT — 6 boxes + professional dialpad
+// SHARED CODE INPUT
+// ⚠️ IMPORTANT: onChange is the LAST parameter so trailing lambda works
 // ═══════════════════════════════════════════════
 @Composable
 fun CodeInput6(
     value: String,
-    onChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onChange: (String) -> Unit
 ) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
@@ -325,7 +323,7 @@ fun CodeInput6(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ═══ 6 DIGIT BOXES ═══
+        // 6 digit boxes
         Row(
             Modifier.widthIn(max = 340.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(7.dp)
@@ -338,9 +336,7 @@ fun CodeInput6(
                         .weight(1f)
                         .height(56.dp)
                         .clip(RoundedCornerShape(13.dp))
-                        .background(
-                            if (active) NexaSurface2 else NexaSurface
-                        )
+                        .background(if (active) NexaSurface2 else NexaSurface)
                         .border(
                             width = if (active) 1.5.dp else 1.dp,
                             color = when {
@@ -360,7 +356,6 @@ fun CodeInput6(
                             fontWeight = FontWeight.ExtraBold
                         )
                     } else if (active) {
-                        // Blinking cursor
                         Box(
                             Modifier
                                 .size(width = 2.dp, height = 20.dp)
@@ -373,30 +368,26 @@ fun CodeInput6(
 
         Spacer(Modifier.height(28.dp))
 
-        // ═══ DIALPAD ═══
+        // Dialpad
         Column(
             Modifier.widthIn(max = 300.dp).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 1 2 3
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 DialKey("1", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "1") }
                 DialKey("2", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "2") }
                 DialKey("3", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "3") }
             }
-            // 4 5 6
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 DialKey("4", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "4") }
                 DialKey("5", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "5") }
                 DialKey("6", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "6") }
             }
-            // 7 8 9
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 DialKey("7", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "7") }
                 DialKey("8", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "8") }
                 DialKey("9", Modifier.weight(1f)) { if (value.length < 6) onChange(value + "9") }
             }
-            // 📋 0 ⌫
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ActionKey(Modifier.weight(1f), onClick = {
                     val clip = clipboard.getText()?.text ?: ""
