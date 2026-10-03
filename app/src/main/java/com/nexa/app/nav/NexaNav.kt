@@ -62,11 +62,7 @@ private const val ANIM_MS = 320
 fun NexaNav(prefs: Prefs, repo: Repository) {
     val nav = rememberNavController()
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(NexaBg)
-    ) {
+    Box(Modifier.fillMaxSize().background(NexaBg)) {
         // Ambient glow
         Canvas(Modifier.fillMaxSize()) {
             val gC = Offset(0f, 0f)
@@ -98,7 +94,6 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
         NavHost(
             navController = nav,
             startDestination = Routes.SPLASH,
-
             enterTransition = {
                 slideInHorizontally(
                     animationSpec = tween(ANIM_MS, easing = NexaEase),
@@ -114,7 +109,7 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                 ) + fadeOut(animationSpec = tween(200))
             }
         ) {
-            // SPLASH with session validation
+            // SPLASH
             composable(Routes.SPLASH) {
                 var splashTimePassed by remember { mutableStateOf(false) }
                 var validationDone by remember { mutableStateOf(false) }
@@ -161,12 +156,28 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
             composable(Routes.HISTORY)       { HistoryScreen(nav, prefs, repo) }
             composable(Routes.PROFILE)       { ProfileScreen(nav, prefs) }
 
-            composable(Routes.DEPOSIT)       { DepositScreen(nav, repo) }
+            // ═══ DEPOSIT — with crypto param ═══
+            composable(
+                route = Routes.DEPOSIT + "?crypto={crypto}",
+                arguments = listOf(
+                    navArgument("crypto") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    }
+                )
+            ) { entry ->
+                DepositScreen(
+                    nav = nav,
+                    repo = repo,
+                    initialCrypto = entry.arguments?.getString("crypto") ?: ""
+                )
+            }
+
             composable(Routes.WITHDRAW)      { WithdrawScreen(nav, prefs, repo) }
             composable(Routes.MYQR)          { MyQrScreen(nav, prefs) }
             composable(Routes.SCAN)          { ScanScreen(nav, prefs) }
 
-            // ═══ SEND with optional recipient prefill ═══
+            // ═══ SEND with recipient prefill ═══
             composable(
                 route = Routes.SEND + "?recipient={recipient}",
                 arguments = listOf(
