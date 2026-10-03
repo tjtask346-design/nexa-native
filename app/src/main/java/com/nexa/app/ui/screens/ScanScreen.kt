@@ -21,10 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -38,6 +35,7 @@ import com.google.zxing.common.HybridBinarizer
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.nexa.app.data.Prefs
+import com.nexa.app.nav.Routes
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,15 +45,27 @@ import kotlinx.coroutines.withContext
 fun ScanScreen(nav: NavController, prefs: Prefs) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var lastResult by remember { mutableStateOf<String?>(null) }
-    var pickedImage by remember { mutableStateOf<Bitmap?>(null) }
+    var cameraCancelled by remember { mutableStateOf(false) }
 
-    // ═══ Camera QR scanner ═══
+    // ═══ Handle scanned value → Send screen ═══
+    fun handleScanned(value: String) {
+        val recipient = parseRecipient(value)
+        if (recipient.isBlank()) {
+            Toast.makeText(ctx, "Invalid Nexa QR", Toast.LENGTH_SHORT).show()
+            nav.popBackStack()
+            return
+        }
+        nav.navigate("${Routes.SEND}?recipient=$recipient") {
+            popUpTo(Routes.HOME)
+        }
+    }
+
+    // ═══ Camera scanner ═══
     val cameraLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         if (result.contents != null) {
-            lastResult = result.contents
-            Toast.makeText(ctx, "Scanned: ${result.contents.take(50)}", Toast.LENGTH_LONG).show()
-            // TODO: parse and navigate
+            handleScanned(result.contents)
+        } else {
+            cameraCancelled = true
         }
     }
 
@@ -63,31 +73,23 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        if (uri != null) {
-            scope.launch {
-                val bitmap = withContext(Dispatchers.IO) { loadBitmap(ctx, uri) }
-                if (bitmap == null) {
-                    Toast.makeText(ctx, "Cannot load image", Toast.LENGTH_SHORT).show()
-                    return@launch
-                }
-                pickedImage = bitmap
-
-                // Decode QR from image
-                val decoded = withContext(Dispatchers.IO) { decodeQrFromBitmap(bitmap) }
-                if (decoded != null) {
-                    lastResult = decoded
-                    Toast.makeText(ctx, "Scanned: ${decoded.take(50)}", Toast.LENGTH_LONG).show()
-                } else {
-                    Toast.makeText(ctx, "No QR code found in this image", Toast.LENGTH_LONG).show()
-                }
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val bmp = withContext(Dispatchers.IO) { loadBitmap(ctx, uri) }
+            if (bmp == null) {
+                Toast.makeText(ctx, "Cannot load image", Toast.LENGTH_SHORT).show()
+                return@launch
             }
+            val decoded = withContext(Dispatchers.IO) { decodeQr(bmp) }
+            if (decoded != null) handleScanned(decoded)
+            else Toast.makeText(ctx, "No QR code in this image", Toast.LENGTH_LONG).show()
         }
     }
 
     fun launchCamera() {
         val options = ScanOptions().apply {
             setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-            setPrompt("Align QR code inside the frame")
+            setPrompt("Align Nexa QR inside the frame")
             setBeepEnabled(false)
             setOrientationLocked(true)
             setBarcodeImageEnabled(false)
@@ -95,210 +97,141 @@ fun ScanScreen(nav: NavController, prefs: Prefs) {
         cameraLauncher.launch(options)
     }
 
-    // ═══ Auto-launch camera on first open ═══
-    var autoLaunched by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        if (!autoLaunched) {
-            autoLaunched = true
-            kotlinx.coroutines.delay(300)
-            launchCamera()
-        }
-    }
+    // ═══ Immediately launch camera ═══
+    LaunchedEffect(Unit) { launchCamera() }
 
-    Column(Modifier.fillMaxSize().background(NexaBg)) {
-        // Header
-        Row(
-            Modifier.fillMaxWidth().padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(NexaSurface2)
-                    .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(13.dp))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { nav.popBackStack() },
-                contentAlignment = Alignment.Center
+    // ═══════════════════════════════════════════
+    // MINIMAL UI — only shown if user cancels camera
+    // ═══════════════════════════════════════════
+    Box(
+        Modifier.fillMaxSize().background(NexaBg),
+        contentAlignment = Alignment.Center
+    ) {
+        if (cameraCancelled) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("←", color = NexaText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
-            Text(
-                "Scan QR",
-                color = NexaText, fontWeight = FontWeight.Bold, fontSize = 17.sp,
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.width(40.dp))
-        }
-
-        Column(
-            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            // Picked image preview or icon
-            if (pickedImage != null) {
                 Box(
-                    Modifier
-                        .size(240.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.White)
-                        .padding(8.dp)
-                ) {
-                    androidx.compose.foundation.Image(
-                        bitmap = pickedImage!!.asImageBitmap(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            } else {
-                Box(
-                    Modifier
-                        .size(220.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                        .background(Brush.radialGradient(listOf(NexaGreen.copy(alpha = 0.10f), Color.Transparent)))
-                        .border(2.dp, NexaGreen.copy(alpha = 0.35f), RoundedCornerShape(28.dp)),
+                    Modifier.size(96.dp).clip(RoundedCornerShape(28.dp))
+                        .background(NexaGreen.copy(alpha = 0.10f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Filled.QrCodeScanner,
-                        contentDescription = null,
-                        tint = NexaGreen,
-                        modifier = Modifier.size(96.dp)
+                        null, tint = NexaGreen,
+                        modifier = Modifier.size(42.dp)
                     )
                 }
-            }
+                Text(
+                    "Scan a Nexa QR",
+                    color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp
+                )
+                Text(
+                    "Camera is closed. Try again or pick from gallery.",
+                    color = NexaMuted, fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
 
-            Spacer(Modifier.height(24.dp))
-            Text(
-                "Scan a Nexa QR code",
-                color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp,
-                letterSpacing = (-0.4).sp
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Use camera or pick from gallery",
-                color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center, lineHeight = 19.sp
-            )
+                Spacer(Modifier.height(8.dp))
 
-            if (lastResult != null) {
-                Spacer(Modifier.height(16.dp))
+                // Camera button
                 Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Brush.horizontalGradient(listOf(NexaGreen, NexaTeal)))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { cameraCancelled = false; launchCamera() }
+                        .padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.QrCodeScanner,
+                            null, tint = Color(0xFF04140D),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text("Open Camera", color = Color(0xFF04140D), fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                    }
+                }
+
+                // Gallery button
+                Box(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
                         .background(NexaSurface)
-                        .padding(12.dp)
+                        .border(1.5.dp, NexaBorder.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { galleryLauncher.launch("image/*") }
+                        .padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        "Last scan: $lastResult",
-                        color = NexaTeal, fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Filled.Collections, null, tint = NexaText, modifier = Modifier.size(18.dp))
+                        Text("Pick from Gallery", color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                    }
                 }
-            }
-        }
 
-        // ═══ Bottom: TWO buttons (Camera + Gallery) ═══
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Camera button
-            Box(
-                Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Brush.horizontalGradient(listOf(NexaGreen, NexaTeal)))
-                    .clickable(
+                // Cancel
+                Text(
+                    "Cancel",
+                    color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { launchCamera() }
-                    .padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.QrCodeScanner,
-                        contentDescription = null,
-                        tint = Color(0xFF04140D),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        "Camera",
-                        color = Color(0xFF04140D),
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp
-                    )
-                }
-            }
-
-            // Gallery button
-            Box(
-                Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(NexaSurface)
-                    .border(1.5.dp, NexaBorder.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { galleryLauncher.launch("image/*") }
-                    .padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.Collections,
-                        contentDescription = null,
-                        tint = NexaText,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        "Gallery",
-                        color = NexaText,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp
-                    )
-                }
+                    ) { nav.popBackStack() }
+                )
             }
         }
+        // else: blank screen while camera is open
     }
 }
 
 // ═══════════════════════════════════════════════
-// HELPERS
+// Parse QR payload → extract recipient (account number)
 // ═══════════════════════════════════════════════
+private fun parseRecipient(raw: String): String {
+    return try {
+        val uri = Uri.parse(raw)
+        // Try account number first
+        val acc = uri.getQueryParameter("acc") ?: ""
+        if (acc.isNotBlank()) return acc
+        // Fallback to "to" (username) or email
+        val to = uri.getQueryParameter("to") ?: ""
+        if (to.isNotBlank()) return to.replace("@", "")
+        val email = uri.getQueryParameter("email") ?: ""
+        if (email.isNotBlank()) return email
+        // Last resort: if raw is just digits (account), use directly
+        if (raw.all { it.isDigit() }) return raw
+        ""
+    } catch (e: Exception) { "" }
+}
+
 private fun loadBitmap(ctx: android.content.Context, uri: Uri): Bitmap? {
     return try {
         ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
     } catch (_: Exception) { null }
 }
 
-private fun decodeQrFromBitmap(bitmap: Bitmap): String? {
+private fun decodeQr(bitmap: Bitmap): String? {
     return try {
         val width = bitmap.width
         val height = bitmap.height
         val pixels = IntArray(width * height)
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
         val source = RGBLuminanceSource(width, height, pixels)
         val binary = BinaryBitmap(HybridBinarizer(source))
-        val result = MultiFormatReader().decode(binary)
-        result.text
+        MultiFormatReader().decode(binary).text
     } catch (_: Exception) { null }
 }
