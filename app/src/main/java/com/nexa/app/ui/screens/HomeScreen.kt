@@ -39,11 +39,11 @@ import com.nexa.app.ui.components.BalanceCard
 import com.nexa.app.ui.components.MethodCard
 import com.nexa.app.ui.components.NexaBottomBar
 import com.nexa.app.ui.components.NexaFabSheet
-import com.nexa.app.ui.components.NexaScreen
 import com.nexa.app.ui.components.QuickAction
 import com.nexa.app.ui.components.SectionHeader
 import com.nexa.app.ui.components.TxRow
 import com.nexa.app.ui.theme.*
+import kotlinx.coroutines.delay
 import java.util.Calendar
 
 @Composable
@@ -55,6 +55,10 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     var loading by remember { mutableStateOf(true) }
     var showFabSheet by remember { mutableStateOf(false) }
 
+    // ═══ Unread notification count (via polling) ═══
+    var unreadCount by remember { mutableStateOf(0) }
+    var lastSeenCount by remember { mutableStateOf(0) }
+
     LaunchedEffect(Unit) {
         repo.me().onSuccess { me ->
             me.user?.let { balance = it.balance }
@@ -63,177 +67,214 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         repo.myTransactions().onSuccess { txs = it.transactions }
     }
 
+    // ═══ POLLING for notifications every 15 seconds ═══
+    LaunchedEffect(Unit) {
+        while (true) {
+            try {
+                val res = repo.getNotifications()
+                if (res.isSuccess) {
+                    val unread = res.getOrNull()?.unread ?: 0
+                    unreadCount = unread
+
+                    // If new notification arrived (and not first check), show toast
+                    if (lastSeenCount > 0 && unread > lastSeenCount) {
+                        val latest = res.getOrNull()?.notifications?.firstOrNull()
+                        if (latest != null) {
+                            Toast.makeText(
+                                ctx,
+                                "${latest.title}\n${latest.body}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                    lastSeenCount = unread
+                }
+            } catch (_: Exception) { }
+            delay(15_000)  // 15 seconds
+        }
+    }
+
     val monthIn = remember(txs) {
         val cal = Calendar.getInstance()
-        val currentMonth = cal.get(Calendar.MONTH)
-        val currentYear = cal.get(Calendar.YEAR)
+        val m = cal.get(Calendar.MONTH)
+        val y = cal.get(Calendar.YEAR)
         txs.filter { tx ->
             val d = tx.createdAt?.let { parseYearMonth(it) }
-            d != null && d.first == currentYear && d.second == currentMonth && tx.type == "deposit"
+            d != null && d.first == y && d.second == m && tx.type == "deposit"
         }.sumOf { it.amount }
     }
 
     val monthOut = remember(txs) {
         val cal = Calendar.getInstance()
-        val currentMonth = cal.get(Calendar.MONTH)
-        val currentYear = cal.get(Calendar.YEAR)
+        val m = cal.get(Calendar.MONTH)
+        val y = cal.get(Calendar.YEAR)
         txs.filter { tx ->
             val d = tx.createdAt?.let { parseYearMonth(it) }
-            d != null && d.first == currentYear && d.second == currentMonth &&
+            d != null && d.first == y && d.second == m &&
                 (tx.type == "cashout" || tx.type == "transfer")
         }.sumOf { it.amount }
     }
 
-    NexaScreen {
-        Column(Modifier.fillMaxSize()) {
-            Column(
-                Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(bottom = 20.dp)
+    Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 20.dp)
+        ) {
+            // ═══ TOP BAR ═══
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // ══════════ TOP BAR ══════════
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))) {
-                        Image(
-                            painterResource(R.drawable.nexa_logo),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "Welcome back 👋",
-                            color = NexaMuted,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.2.sp
-                        )
-                        Text(
-                            prefs.name ?: "User",
-                            color = NexaText,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.5.sp,
-                            letterSpacing = (-0.2).sp,
-                            maxLines = 1
-                        )
-                    }
-                    // 🔔 Working bell
-                    Box(
-                        Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(NexaSurface2)
-                            .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(13.dp))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                Toast.makeText(ctx, "No new notifications", Toast.LENGTH_SHORT).show()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.Notifications,
-                            contentDescription = "Notifications",
-                            tint = NexaText,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
-                }
-
-                // ══════════ BALANCE CARD ══════════
-                BalanceCard(
-                    balance = balance,
-                    hidden = hidden,
-                    onToggleHide = { hidden = !hidden },
-                    monthIn = monthIn,
-                    monthOut = monthOut,
-                    modifier = Modifier.padding(horizontal = 20.dp)
-                )
-
-                // ══════════ QUICK ACTIONS ══════════
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    QuickAction("Deposit", Icons.Filled.ArrowDownward, NexaGreen, Modifier.weight(1f)) {
-                        nav.navigate(Routes.DEPOSIT)
-                    }
-                    QuickAction("Withdraw", Icons.Filled.ArrowUpward, NexaTeal, Modifier.weight(1f)) {
-                        nav.navigate(Routes.WITHDRAW)
-                    }
-                    QuickAction("Scan", Icons.Filled.QrCodeScanner, NexaGreen, Modifier.weight(1f)) {
-                        nav.navigate(Routes.SCAN)
-                    }
-                    QuickAction("My QR", Icons.Filled.QrCode2, NexaTeal, Modifier.weight(1f)) {
-                        nav.navigate(Routes.MYQR)
-                    }
-                }
-
-                // ══════════ QUICK DEPOSIT METHODS ══════════
-                Spacer(Modifier.height(24.dp))
-                Box(Modifier.padding(horizontal = 20.dp)) {
-                    SectionHeader("Quick Deposit")
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    MethodCard("USDT", "BEP20 · BSC", R.drawable.usdt, Color(0xFF26A17B)) {
-                        nav.navigate(Routes.DEPOSIT)
-                    }
-                    MethodCard("Litecoin", "LTC Network", R.drawable.ltc, Color(0xFF345D9D)) {
-                        nav.navigate(Routes.DEPOSIT)
-                    }
-                    MethodCard("Nexa User", "0% fee", R.drawable.nexa_logo, NexaGreen) {
-                        nav.navigate(Routes.MYQR)
-                    }
-                }
-
-                // ══════════ RECENT TRANSACTIONS ══════════
-                Spacer(Modifier.height(24.dp))
-                Box(Modifier.padding(horizontal = 20.dp)) {
-                    SectionHeader(
-                        title = "Recent Transactions",
-                        actionText = "See all",
-                        onAction = { nav.navigate(Routes.HISTORY) }
+                Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))) {
+                    Image(
+                        painterResource(R.drawable.nexa_logo),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
-                Spacer(Modifier.height(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Welcome back 👋",
+                        color = NexaMuted, fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium, letterSpacing = 0.2.sp
+                    )
+                    Text(
+                        prefs.name ?: "User",
+                        color = NexaText, fontWeight = FontWeight.Bold,
+                        fontSize = 15.5.sp, letterSpacing = (-0.2).sp, maxLines = 1
+                    )
+                }
 
-                if (txs.isEmpty()) {
-                    Box(Modifier.fillMaxWidth().padding(60.dp), contentAlignment = Alignment.Center) {
-                        Text(
-                            if (loading) "Loading…" else "No transactions yet",
-                            color = NexaDim,
-                            fontSize = 13.sp
-                        )
-                    }
-                } else {
-                    Column(
-                        Modifier.padding(horizontal = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(9.dp)
-                    ) {
-                        txs.take(5).forEach { tx -> TxRow(tx) }
+                // ═══ BELL ICON with unread badge ═══
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(NexaSurface2)
+                        .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(13.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            nav.navigate(Routes.NOTIFICATIONS)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Notifications,
+                        contentDescription = "Notifications",
+                        tint = NexaText,
+                        modifier = Modifier.size(19.dp)
+                    )
+                    // Red badge with count
+                    if (unreadCount > 0) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 4.dp, y = (-4).dp)
+                                .size(18.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(NexaRed),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                if (unreadCount > 9) "9+" else unreadCount.toString(),
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
                     }
                 }
             }
 
-            NexaBottomBar(
-                currentRoute = Routes.HOME,
-                onNavigate = { nav.navigate(it) },
-                onFabClick = { showFabSheet = true }
+            // ═══ BALANCE CARD ═══
+            BalanceCard(
+                balance = balance,
+                hidden = hidden,
+                onToggleHide = { hidden = !hidden },
+                monthIn = monthIn,
+                monthOut = monthOut,
+                modifier = Modifier.padding(horizontal = 20.dp)
             )
+
+            // ═══ QUICK ACTIONS ═══
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                QuickAction("Deposit", Icons.Filled.ArrowDownward, NexaGreen, Modifier.weight(1f)) {
+                    nav.navigate(Routes.DEPOSIT)
+                }
+                QuickAction("Withdraw", Icons.Filled.ArrowUpward, NexaTeal, Modifier.weight(1f)) {
+                    nav.navigate(Routes.WITHDRAW)
+                }
+                QuickAction("Scan", Icons.Filled.QrCodeScanner, NexaGreen, Modifier.weight(1f)) {
+                    nav.navigate(Routes.SCAN)
+                }
+                QuickAction("My QR", Icons.Filled.QrCode2, NexaTeal, Modifier.weight(1f)) {
+                    nav.navigate(Routes.MYQR)
+                }
+            }
+
+            // ═══ QUICK DEPOSIT ═══
+            Spacer(Modifier.height(24.dp))
+            Box(Modifier.padding(horizontal = 20.dp)) { SectionHeader("Quick Deposit") }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                MethodCard("USDT", "BEP20 · BSC", R.drawable.usdt, Color(0xFF26A17B)) {
+                    nav.navigate(Routes.DEPOSIT)
+                }
+                MethodCard("Litecoin", "LTC Network", R.drawable.ltc, Color(0xFF345D9D)) {
+                    nav.navigate(Routes.DEPOSIT)
+                }
+                MethodCard("Nexa User", "0% fee", R.drawable.nexa_logo, NexaGreen) {
+                    nav.navigate(Routes.MYQR)
+                }
+            }
+
+            // ═══ RECENT TRANSACTIONS ═══
+            Spacer(Modifier.height(24.dp))
+            Box(Modifier.padding(horizontal = 20.dp)) {
+                SectionHeader(
+                    title = "Recent Transactions",
+                    actionText = "See all",
+                    onAction = { nav.navigate(Routes.HISTORY) }
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+
+            if (txs.isEmpty()) {
+                Box(Modifier.fillMaxWidth().padding(60.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        if (loading) "Loading…" else "No transactions yet",
+                        color = NexaDim, fontSize = 13.sp
+                    )
+                }
+            } else {
+                Column(
+                    Modifier.padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(9.dp)
+                ) {
+                    txs.take(5).forEach { tx -> TxRow(tx) }
+                }
+            }
         }
+
+        NexaBottomBar(
+            currentRoute = Routes.HOME,
+            onNavigate = { nav.navigate(it) },
+            onFabClick = { showFabSheet = true }
+        )
     }
 
     if (showFabSheet) {
