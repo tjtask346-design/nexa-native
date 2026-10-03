@@ -36,7 +36,8 @@ data class User(
     val kycStatus: String = "unverified",
     val totpEnabled: Boolean = false,
     val wallets: Wallets? = null,
-    val ltcAddress: String? = null
+    val ltcAddress: String? = null,
+    val avatarUrl: String? = null   // ← NEW
 ) {
     val displayName: String get() = fullName.ifBlank { email.substringBefore("@") }
     val handle: String get() = "@" + email.substringBefore("@").lowercase()
@@ -115,7 +116,14 @@ data class ResetPinRequest(val email: String, val code: String, val newPin: Stri
 
 data class FcmTokenRequest(val token: String)
 
-// ═══ Notifications ═══
+// ═══ NEW: Avatar ═══
+data class UpdateAvatarRequest(val avatarUrl: String)
+data class UpdateAvatarResponse(
+    val success: Boolean = false,
+    val message: String? = null,
+    val user: User? = null
+)
+
 data class NotificationItem(
     @SerializedName(value = "_id", alternate = ["id"])
     val id: String? = null,
@@ -161,6 +169,13 @@ interface NexaApi {
         @Body body: FcmTokenRequest
     ): SimpleResponse
 
+    // ═══ NEW ═══
+    @PUT("/api/auth/avatar")
+    suspend fun updateAvatar(
+        @Header("Authorization") token: String,
+        @Body body: UpdateAvatarRequest
+    ): UpdateAvatarResponse
+
     @GET("/api/transaction/my")
     suspend fun myTransactions(@Header("Authorization") token: String): TxListResponse
 
@@ -185,7 +200,6 @@ interface NexaApi {
     @GET("/api/kyc/my")
     suspend fun myKyc(@Header("Authorization") token: String): KycListResponse
 
-    // ═══ Notifications ═══
     @GET("/api/notifications")
     suspend fun getNotifications(@Header("Authorization") token: String): NotificationsResponse
 
