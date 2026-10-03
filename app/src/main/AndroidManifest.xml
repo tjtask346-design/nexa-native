@@ -32,6 +32,7 @@
             </intent-filter>
         </activity>
 
+        <!-- FCM Service -->
         <service
             android:name=".data.NexaFirebaseMessagingService"
             android:exported="false">
@@ -39,6 +40,17 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- FileProvider for QR image sharing -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <activity
             android:name="com.journeyapps.barcodescanner.CaptureActivity"
