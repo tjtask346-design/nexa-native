@@ -37,7 +37,9 @@ data class User(
     val totpEnabled: Boolean = false,
     val wallets: Wallets? = null,
     val ltcAddress: String? = null,
-    val avatarUrl: String? = null   // ← NEW
+    val avatarUrl: String? = null,
+    val isBanned: Boolean = false,
+    val banReason: String? = null
 ) {
     val displayName: String get() = fullName.ifBlank { email.substringBefore("@") }
     val handle: String get() = "@" + email.substringBefore("@").lowercase()
@@ -49,10 +51,18 @@ data class AuthResponse(
     val user: User? = null,
     val message: String? = null,
     val requiresTotp: Boolean = false,
-    val requiresTotpSetup: Boolean = false
+    val requiresTotpSetup: Boolean = false,
+    val banned: Boolean = false,
+    val reason: String? = null
 )
 
-data class MeResponse(val success: Boolean = false, val user: User? = null, val message: String? = null)
+data class MeResponse(
+    val success: Boolean = false,
+    val user: User? = null,
+    val message: String? = null,
+    val banned: Boolean = false,
+    val reason: String? = null
+)
 
 data class Transaction(
     @SerializedName(value = "_id", alternate = ["id"])
@@ -116,7 +126,6 @@ data class ResetPinRequest(val email: String, val code: String, val newPin: Stri
 
 data class FcmTokenRequest(val token: String)
 
-// ═══ NEW: Avatar ═══
 data class UpdateAvatarRequest(val avatarUrl: String)
 data class UpdateAvatarResponse(
     val success: Boolean = false,
@@ -169,7 +178,6 @@ interface NexaApi {
         @Body body: FcmTokenRequest
     ): SimpleResponse
 
-    // ═══ NEW ═══
     @PUT("/api/auth/avatar")
     suspend fun updateAvatar(
         @Header("Authorization") token: String,
