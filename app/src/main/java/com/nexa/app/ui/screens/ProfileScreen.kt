@@ -3,8 +3,8 @@ package com.nexa.app.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -63,8 +63,12 @@ import com.nexa.app.ui.components.NexaBottomBar
 import com.nexa.app.ui.components.NexaFabSheet
 import com.nexa.app.ui.components.NexaSwitch
 import com.nexa.app.ui.components.TransactionPinModal
+import com.nexa.app.ui.components.loadAvatarBitmap
 import com.nexa.app.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun ProfileScreen(nav: NavController, prefs: Prefs, repo: Repository) {
@@ -128,11 +132,12 @@ fun ProfileScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                                 indication = null
                             ) { if (!uploading) showEditSheet = true }
                     ) {
-                        UserAvatarImage(ctx = ctx, url = avatarUrl)
+                        ProfileAvatarImage(ctx = ctx, url = avatarUrl)
                         Box(
                             Modifier
                                 .align(Alignment.BottomEnd)
-                                .size(26.dp).clip(CircleShape)
+                                .size(26.dp)
+                                .clip(CircleShape)
                                 .background(NexaGreen)
                                 .border(2.dp, NexaBg, CircleShape),
                             contentAlignment = Alignment.Center
@@ -288,19 +293,43 @@ fun ProfileScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 uploading = uploading,
                 onDismiss = { if (!uploading) showEditSheet = false },
                 onPickImage = { uri ->
+                    // Step 1: Save locally for INSTANT display
+                    var localUri: String? = null
+                    try {
+                        val dest = File(ctx.filesDir, "profile_avatar_${System.currentTimeMillis()}.jpg")
+                        ctx.contentResolver.openInputStream(uri)?.use { input ->
+                            dest.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        localUri = dest.toURI().toString()
+                        prefs.avatarUrl = localUri
+                        avatarUrl = localUri
+                    } catch (e: Exception) {
+                        Log.e("NEXA_AVATAR", "Local save failed: ${e.message}")
+                    }
+
+                    // Step 2: Upload to Cloudinary in background
                     scope.launch {
                         uploading = true
                         try {
-                            val url = CloudinaryHelper.uploadKycImage(ctx, uri, "avatar")
-                            val res = repo.updateAvatar(url)
+                            val cloudUrl = withContext(Dispatchers.IO) {
+                                CloudinaryHelper.uploadKycImage(ctx, uri, "avatar")
+                            }
+                            Log.d("NEXA_AVATAR", "Cloudinary URL: $cloudUrl")
+
+                            val res = repo.updateAvatar(cloudUrl)
                             if (res.isSuccess) {
-                                prefs.avatarUrl = url
-                                avatarUrl = url
+                                // Persist cloud URL (for future app restarts)
+                                prefs.avatarUrl = cloudUrl
                                 Toast.makeText(ctx, "Photo updated ✓", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(ctx, res.exceptionOrNull()?.message ?: "Upload failed", Toast.LENGTH_LONG).show()
+                                Toast.makeText(
+                                    ctx,
+                                    res.exceptionOrNull()?.message ?: "Backend save failed",
+                                    Toast.LENGTH_LONG
+                                ).show()
                             }
                         } catch (e: Exception) {
+                            Log.e("NEXA_AVATAR", "Upload failed: ${e.message}", e)
                             Toast.makeText(ctx, "Upload error: ${e.message}", Toast.LENGTH_LONG).show()
                         }
                         uploading = false
@@ -338,47 +367,34 @@ fun ProfileScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     }
 }
 
-// ═══ Avatar loader — supports HTTP URLs and local files ═══
+// ═══ Avatar image — async load with cache ═══
 @Composable
-private fun UserAvatarImage(ctx: Context, url: String?) {
-    if (url.isNullOrBlank()) {
-        Image(
-            painterResource(R.drawable.nexa_logo),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize()
-        )
-        return
+private fun ProfileAvatarImage(ctx: Context, url: String?) {
+    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(url) {
+        bitmap = null
+        if (!url.isNullOrBlank()) {
+            bitmap = withContext(Dispatchers.IO) {
+                loadAvatarBitmap(ctx, url)
+            }
+        }
     }
 
-    val bmp = remember(url) { loadBitmapFromUrl(ctx, url) }
-    if (bmp != null) {
+    if (bitmap != null) {
         Image(
-            bitmap = bmp.asImageBitmap(),
+            bitmap = bitmap!!.asImageBitmap(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
     } else {
         Image(
-            painterResource(R.drawable.nexa_logo),
+            painter = painterResource(R.drawable.nexa_logo),
             contentDescription = null,
             modifier = Modifier.fillMaxSize()
         )
     }
-}
-
-private fun loadBitmapFromUrl(ctx: Context, url: String): Bitmap? {
-    return try {
-        if (url.startsWith("http")) {
-            val connection = java.net.URL(url).openConnection()
-            connection.doInput = true
-            connection.connect()
-            connection.getInputStream().use { BitmapFactory.decodeStream(it) }
-        } else {
-            val uri = Uri.parse(url)
-            ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-        }
-    } catch (e: Exception) { null }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -427,7 +443,6 @@ private fun EditProfileSheet(
 
             Spacer(Modifier.height(24.dp))
 
-            // Avatar picker
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Box(
                     Modifier
@@ -440,7 +455,7 @@ private fun EditProfileSheet(
                         ) { picker.launch("image/*") },
                     contentAlignment = Alignment.Center
                 ) {
-                    UserAvatarImage(ctx = ctx, url = currentAvatarUrl)
+                    ProfileAvatarImage(ctx = ctx, url = currentAvatarUrl)
                     if (uploading) {
                         Box(
                             Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)),
