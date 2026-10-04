@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -11,7 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -20,18 +25,20 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import com.nexa.app.R
 import com.nexa.app.data.Prefs
 import com.nexa.app.ui.theme.NexaGreen
 import com.nexa.app.ui.theme.NexaTeal
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 
-/**
- * Universal user avatar.
- *
- * Loads [Prefs.avatarUrl] → user's own picture.
- * If not set → falls back to Nexa logo.
- */
+// ═══════════════════════════════════════════════
+// SHARED BITMAP CACHE
+// ═══════════════════════════════════════════════
+private val avatarCache = LruCache<String, Bitmap>(30)
+
 @Composable
 fun UserAvatar(
     prefs: Prefs,
@@ -41,7 +48,17 @@ fun UserAvatar(
 ) {
     val ctx = LocalContext.current
     val avatarUri = prefs.avatarUrl
-    val bmp = remember(avatarUri) { loadAvatarBitmap(ctx, avatarUri) }
+
+    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(avatarUri) {
+        bitmap = null
+        if (!avatarUri.isNullOrBlank()) {
+            bitmap = withContext(Dispatchers.IO) {
+                loadAvatarBitmap(ctx, avatarUri)
+            }
+        }
+    }
 
     Box(
         modifier
@@ -49,9 +66,9 @@ fun UserAvatar(
             .clip(RoundedCornerShape(cornerRadius))
             .background(Brush.linearGradient(listOf(NexaGreen, NexaTeal)))
     ) {
-        if (bmp != null) {
+        if (bitmap != null) {
             Image(
-                bitmap = bmp.asImageBitmap(),
+                bitmap = bitmap!!.asImageBitmap(),
                 contentDescription = "User avatar",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -66,10 +83,27 @@ fun UserAvatar(
     }
 }
 
-private fun loadAvatarBitmap(ctx: Context, uriStr: String?): Bitmap? {
-    if (uriStr.isNullOrBlank()) return null
+fun loadAvatarBitmap(ctx: Context, urlStr: String): Bitmap? {
+    // Cache hit
+    avatarCache.get(urlStr)?.let { return it }
+
     return try {
-        val uri = Uri.parse(uriStr)
-        ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-    } catch (e: Exception) { null }
+        val bmp = if (urlStr.startsWith("http")) {
+            val conn = URL(urlStr).openConnection() as HttpURLConnection
+            conn.doInput = true
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
+            conn.connect()
+            conn.inputStream.use { BitmapFactory.decodeStream(it) }
+        } else {
+            val uri = Uri.parse(urlStr)
+            ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+        }
+
+        if (bmp != null) avatarCache.put(urlStr, bmp)
+        bmp
+    } catch (e: Exception) {
+        android.util.Log.e("NEXA_AVATAR", "Load failed: ${e.message}", e)
+        null
+    }
 }
