@@ -18,9 +18,14 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mail
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -36,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -175,7 +181,6 @@ private fun GradientText(text: String, fontSize: TextUnit, letterSpacing: TextUn
 
 // ═══════════════════════════════════════════════
 // INPUT FIELD — SAFE VERSION
-// Focus indicator via shadow, no negative padding
 // ═══════════════════════════════════════════════
 @Composable
 private fun AuthInputField(
@@ -463,11 +468,12 @@ private fun AuthDivider(text: String) {
 }
 
 // ═══════════════════════════════════════════════
-// TRUST CHIP
+// TRUST CHIP — with Material Icon (Professional)
 // ═══════════════════════════════════════════════
 @Composable
 private fun TrustChip(
-    emoji: String,
+    icon: ImageVector,
+    iconTint: Color = NexaGreen,
     bold: String,
     normal: String,
     boldColor: Color = NexaGreen
@@ -477,15 +483,22 @@ private fun TrustChip(
             .clip(RoundedCornerShape(11.dp))
             .background(NexaSurface)
             .border(1.dp, BORDER_GREEN_09, RoundedCornerShape(11.dp))
-            .padding(horizontal = 13.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(emoji, fontSize = 11.sp)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconTint,
+            modifier = Modifier.size(13.dp)
+        )
         Text(
             text = buildAnnotatedString {
                 withStyle(SpanStyle(color = boldColor, fontWeight = FontWeight.Bold)) { append(bold) }
-                withStyle(SpanStyle(color = NexaMuted, fontWeight = FontWeight.Bold)) { append(normal) }
+                if (normal.isNotEmpty()) {
+                    withStyle(SpanStyle(color = NexaMuted, fontWeight = FontWeight.Bold)) { append(normal) }
+                }
             },
             fontSize = 11.sp
         )
@@ -609,9 +622,21 @@ fun LoginScreen(nav: NavController, prefs: Prefs) {
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
             ) {
-                TrustChip("🔒", "256-bit", " encryption")
-                TrustChip("👆", "Biometric", " ready")
-                TrustChip("✅", "KYC", " verified")
+                TrustChip(
+                    icon = Icons.Filled.Lock,
+                    bold = "256-bit",
+                    normal = " encryption"
+                )
+                TrustChip(
+                    icon = Icons.Filled.Fingerprint,
+                    bold = "Biometric",
+                    normal = " ready"
+                )
+                TrustChip(
+                    icon = Icons.Filled.VerifiedUser,
+                    bold = "KYC",
+                    normal = " verified"
+                )
             }
 
             Spacer(Modifier.height(20.dp))
@@ -755,9 +780,23 @@ fun SignupScreen(nav: NavController, prefs: Prefs) {
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
             ) {
-                TrustChip("⚡", "0% fee", " Nexa→Nexa")
-                TrustChip("🌐", "LTC · USDT", "")
-                TrustChip("📱", "bKash", "")
+                TrustChip(
+                    icon = Icons.Filled.FlashOn,
+                    bold = "0% fee",
+                    normal = " Nexa→Nexa"
+                )
+                TrustChip(
+                    icon = Icons.Filled.AccountBalanceWallet,
+                    iconTint = NexaTeal,
+                    bold = "LTC · USDT",
+                    normal = ""
+                )
+                TrustChip(
+                    icon = Icons.Filled.PhoneAndroid,
+                    iconTint = NexaTeal,
+                    bold = "bKash",
+                    normal = ""
+                )
             }
 
             Spacer(Modifier.height(20.dp))
