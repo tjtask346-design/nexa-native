@@ -77,7 +77,7 @@ private val KYC_REQUIRED_ROUTES = setOf(
     Routes.SCAN, Routes.SEND, Routes.NOTIFICATIONS, Routes.SUCCESS
 )
 
-// Screens that should NOT be blocked by offline wall (TOTP copy-paste flow)
+// Screens that should NOT be blocked by offline wall
 private val OFFLINE_EXEMPT = setOf(
     Routes.LOGIN, Routes.SIGNUP, Routes.PIN,
     Routes.VERIFY_EMAIL, Routes.FORGOT_PIN,
@@ -96,19 +96,19 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
     val backStackEntry by nav.currentBackStackEntryAsState()
     val currentPath = backStackEntry?.destination?.route?.substringBefore("?") ?: ""
 
-    // ═══ KYC status — cached + polled ═══
+    // ═══ KYC status ═══
     var kycStatus by remember { mutableStateOf(prefs.kycStatus) }
+    // ⭐ NEW: Only enforce KYC redirect AFTER we've confirmed from server at least once
+    var kycCheckedFromServer by remember { mutableStateOf(false) }
 
-    // Poll /me every 5 seconds while logged in
     LaunchedEffect(Unit) {
         while (true) {
             if (!prefs.token.isNullOrBlank()) {
                 repo.me().onSuccess { res ->
                     res.user?.kycStatus?.let { status ->
-                        if (status != kycStatus) {
-                            kycStatus = status
-                            prefs.kycStatus = status
-                        }
+                        kycStatus = status
+                        prefs.kycStatus = status
+                        kycCheckedFromServer = true  // ⭐ mark checked
                     }
                 }
             }
@@ -116,10 +116,14 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
         }
     }
 
-    // ═══ KYC Force: redirect non-verified users to KYC screen ═══
-    LaunchedEffect(currentPath, kycStatus) {
+    // ═══ KYC Force — only after server confirms ═══
+    LaunchedEffect(currentPath, kycStatus, kycCheckedFromServer) {
         val loggedIn = !prefs.token.isNullOrBlank()
-        if (loggedIn && currentPath in KYC_REQUIRED_ROUTES && kycStatus != "verified") {
+        if (loggedIn
+            && kycCheckedFromServer
+            && currentPath in KYC_REQUIRED_ROUTES
+            && kycStatus != "verified"
+        ) {
             nav.navigate(Routes.KYC) {
                 popUpTo(Routes.KYC) { inclusive = false }
                 launchSingleTop = true
@@ -155,7 +159,6 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
     val showOfflineWall = !online && !offlineExempt
 
     Box(Modifier.fillMaxSize().background(NexaBg)) {
-        // Ambient glow
         Canvas(Modifier.fillMaxSize()) {
             val gC = Offset(0f, 0f)
             val gR = size.width * 0.85f
@@ -217,6 +220,7 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                                 res.getOrNull()?.user?.kycStatus?.let {
                                     kycStatus = it
                                     prefs.kycStatus = it
+                                    kycCheckedFromServer = true
                                 }
                                 destination = Routes.PIN
                             } else {
