@@ -5,7 +5,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -74,7 +74,6 @@ private fun AuthBackground(content: @Composable BoxScope.() -> Unit) {
             .fillMaxSize()
             .background(NexaBg)
             .drawBehind {
-                // Glow A — top-left green
                 val aRadius = 175.dp.toPx()
                 val aCenter = Offset(90.dp.toPx(), (-10).dp.toPx())
                 drawCircle(
@@ -92,7 +91,6 @@ private fun AuthBackground(content: @Composable BoxScope.() -> Unit) {
                     center = aCenter
                 )
 
-                // Glow B — right teal
                 val bRadius = 160.dp.toPx()
                 val bCenter = Offset(size.width - 10.dp.toPx(), 290.dp.toPx())
                 drawCircle(
@@ -115,18 +113,14 @@ private fun AuthBackground(content: @Composable BoxScope.() -> Unit) {
 }
 
 // ═══════════════════════════════════════════════
-// LOGO WITH HALO — FIXED (renamed param)
+// LOGO WITH HALO
 // ═══════════════════════════════════════════════
 @Composable
-private fun LogoWithHalo(
-    logoSize: Dp,
-    cornerRadius: Dp
-) {
+private fun LogoWithHalo(logoSize: Dp, cornerRadius: Dp) {
     Box(
         Modifier.size(logoSize + 80.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Halo behind (uses DrawScope's size, not param)
         Box(
             Modifier
                 .fillMaxSize()
@@ -152,7 +146,6 @@ private fun LogoWithHalo(
                 }
         )
 
-        // Logo
         Box(Modifier.size(logoSize).clip(RoundedCornerShape(cornerRadius))) {
             Image(
                 painter = painterResource(R.drawable.nexa_logo),
@@ -168,11 +161,7 @@ private fun LogoWithHalo(
 // GRADIENT TEXT
 // ═══════════════════════════════════════════════
 @Composable
-private fun GradientText(
-    text: String,
-    fontSize: TextUnit,
-    letterSpacing: TextUnit
-) {
+private fun GradientText(text: String, fontSize: TextUnit, letterSpacing: TextUnit) {
     Text(
         text = text,
         style = TextStyle(
@@ -185,7 +174,8 @@ private fun GradientText(
 }
 
 // ═══════════════════════════════════════════════
-// INPUT FIELD
+// INPUT FIELD — SAFE VERSION
+// Focus indicator via shadow, no negative padding
 // ═══════════════════════════════════════════════
 @Composable
 private fun AuthInputField(
@@ -204,79 +194,71 @@ private fun AuthInputField(
         else -> BORDER_GREEN_09
     }
     val bgColor = if (focused) NexaSurface2 else NexaSurface
-    val ringColor = when {
-        error -> NexaRed.copy(alpha = 0.10f)
-        focused -> NexaGreen.copy(alpha = 0.10f)
+    val shadowColor = when {
+        error -> NexaRed.copy(alpha = 0.35f)
+        focused -> NexaGreen.copy(alpha = 0.35f)
         else -> Color.Transparent
     }
+    val shadowElevation = if (focused || error) 12.dp else 0.dp
 
-    Box(
+    Row(
         Modifier
             .fillMaxWidth()
             .padding(bottom = 14.dp)
+            .shadow(
+                elevation = shadowElevation,
+                shape = RoundedCornerShape(17.dp),
+                ambientColor = shadowColor,
+                spotColor = shadowColor
+            )
+            .clip(RoundedCornerShape(17.dp))
+            .background(bgColor)
+            .border(1.5.dp, borderColor, RoundedCornerShape(17.dp))
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        if (ringColor.alpha > 0f) {
+        Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
+            CompositionLocalProvider(
+                androidx.compose.material3.LocalContentColor provides
+                    if (focused) NexaGreen else NexaDim
+            ) { leadingIcon() }
+        }
+        Spacer(Modifier.width(11.dp))
+
+        BasicTextField(
+            value = value,
+            onValueChange = onChange,
+            singleLine = true,
+            textStyle = TextStyle(
+                color = NexaText,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = (-0.1).sp
+            ),
+            cursorBrush = SolidColor(NexaGreen),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = keyboardType,
+                imeAction = ImeAction.Done
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .onFocusChanged { focused = it.isFocused }
+        ) { inner ->
             Box(
                 Modifier
-                    .matchParentSize()
-                    .padding((-4).dp)
-                    .clip(RoundedCornerShape(21.dp))
-                    .background(ringColor)
-            )
-        }
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(17.dp))
-                .background(bgColor)
-                .border(1.5.dp, borderColor, RoundedCornerShape(17.dp))
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
-                CompositionLocalProvider(
-                    androidx.compose.material3.LocalContentColor provides
-                        if (focused) NexaGreen else NexaDim
-                ) { leadingIcon() }
-            }
-            Spacer(Modifier.width(11.dp))
-
-            BasicTextField(
-                value = value,
-                onValueChange = onChange,
-                singleLine = true,
-                textStyle = TextStyle(
-                    color = NexaText,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = (-0.1).sp
-                ),
-                cursorBrush = SolidColor(NexaGreen),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = keyboardType,
-                    imeAction = ImeAction.Done
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .onFocusChanged { focused = it.isFocused }
-            ) { inner ->
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 17.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (value.isEmpty()) {
-                        Text(
-                            placeholder,
-                            color = PLACEHOLDER,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    inner()
+                    .fillMaxWidth()
+                    .padding(vertical = 17.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        placeholder,
+                        color = PLACEHOLDER,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
+                inner()
             }
         }
     }
@@ -327,7 +309,7 @@ private fun AuthGradientButton(
         label = "btnScale"
     )
 
-    // Shine animation — 3.2s cycle, sweep in last 40%
+    // Shine animation
     val transition = rememberInfiniteTransition(label = "shine")
     val shineProgress by transition.animateFloat(
         initialValue = 0f,
