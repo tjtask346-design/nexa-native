@@ -14,10 +14,24 @@ android {
         versionCode = 1
         versionName = "1.0"
     }
+    signingConfigs {
+        create("release") {
+            val keystoreFile = file("nexa-release.keystore")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "NexaRelease2026"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "nexa"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "NexaRelease2026"
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

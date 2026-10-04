@@ -7,3 +7,8 @@ build/
 captures/
 .externalNativeBuild
 .cxx
+
+# Keystore - NEVER commit
+*.keystore
+*.jks
+*.b64
