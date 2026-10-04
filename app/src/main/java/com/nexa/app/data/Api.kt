@@ -15,6 +15,30 @@ object NexaConfig {
     const val ADMIN_BKASH_NUMBER = "01772277956"
     const val ADMIN_BKASH_NAME = "Nexa Admin"
     const val MIN_DEPOSIT_USD = 10.0
+
+    // ═══════════════════════════════════════════════
+    // USDT (BEP20 / BSC) Withdrawal
+    // ═══════════════════════════════════════════════
+    // Binance minimum = 3 USDT (safe above their limit)
+    const val MIN_WITHDRAW_USDT_USD = 3.0
+    // Worst-case network fee (congestion buffer). Typical ~$0.02
+    const val NETWORK_FEE_USDT_USD = 0.30
+
+    // ═══════════════════════════════════════════════
+    // LTC (Litecoin) Withdrawal
+    // ═══════════════════════════════════════════════
+    // Binance minimum = 0.002 LTC ≈ $0.17. We set $1 for better UX.
+    const val MIN_WITHDRAW_LTC_USD = 1.0
+    // Worst-case LTC network fee (typical ~$0.001, we use buffer)
+    const val NETWORK_FEE_LTC_USD = 0.10
+
+    // ═══════════════════════════════════════════════
+    // Nexa internal (Nexa→Nexa) — free
+    // ═══════════════════════════════════════════════
+    const val MIN_WITHDRAW_NEXA_USD = 20.0
+    const val NETWORK_FEE_NEXA_USD = 0.0
+
+    // Legacy (backward compatibility — If any old screen uses this)
     const val MIN_WITHDRAW_USD = 20.0
 }
 
