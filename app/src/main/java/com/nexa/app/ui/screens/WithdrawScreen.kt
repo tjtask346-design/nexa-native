@@ -61,13 +61,32 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     }
 
     val amt = amount.toDoubleOrNull() ?: 0.0
-    val fee = when (selected) {
-        "usdt" -> 1.0
-        "ltc" -> 0.05
-        else -> 0.0
+
+    // ═══════════════════════════════════════════
+    // Per-currency: min + network fee
+    // ═══════════════════════════════════════════
+    val minWithdraw = when (selected) {
+        "usdt" -> NexaConfig.MIN_WITHDRAW_USDT_USD
+        "ltc"  -> NexaConfig.MIN_WITHDRAW_LTC_USD
+        else   -> NexaConfig.MIN_WITHDRAW_NEXA_USD
     }
+    val fee = when (selected) {
+        "usdt" -> NexaConfig.NETWORK_FEE_USDT_USD
+        "ltc"  -> NexaConfig.NETWORK_FEE_LTC_USD
+        else   -> NexaConfig.NETWORK_FEE_NEXA_USD
+    }
+
     val net = (amt - fee).coerceAtLeast(0.0)
-    val canSubmit = !loading && amt >= NexaConfig.MIN_WITHDRAW_USD && amt <= balance && dest.isNotBlank()
+    val canSubmit = !loading && amt >= minWithdraw && amt <= balance && dest.isNotBlank()
+
+    // Helper labels for info card
+    val minLabel = when (selected) {
+        "usdt" -> "Minimum: 3 USDT (\$3.00)"
+        "ltc"  -> "Minimum: 0.012 LTC (\$1.00)"
+        else   -> "Minimum: \$20.00"
+    }
+    val feeLabel = if (fee == 0.0) "Network fee: Free"
+                   else "Network fee: \$${String.format("%.2f", fee)}"
 
     Column(Modifier.fillMaxSize().background(NexaBg)) {
         Row(
@@ -90,14 +109,14 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)
         ) {
-            // Crypto picker
+            // ═══ Crypto picker ═══
             Text(
                 "CHOOSE CRYPTOCURRENCY",
                 color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.6.sp, modifier = Modifier.padding(bottom = 12.dp)
             )
             Row(
-                Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                Modifier.fillMaxWidth().padding(bottom = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 WITHDRAW_OPTIONS.forEach { (key, label, color) ->
@@ -123,7 +142,37 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 }
             }
 
-            // Amount
+            // ═══ Info card: min + fee + available ═══
+            Box(
+                Modifier.fillMaxWidth().padding(bottom = 20.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(NexaTeal.copy(alpha = 0.07f))
+                    .border(1.dp, NexaTeal.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                    .padding(14.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Filled.Info, null, tint = NexaTeal, modifier = Modifier.size(16.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            minLabel,
+                            color = Color(0xFF7DD3C8), fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            feeLabel,
+                            color = Color(0xFF7DD3C8), fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            "Available: $${String.format("%,.2f", balance)}",
+                            color = NexaDim, fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            // ═══ Amount ═══
             Text(
                 "AMOUNT (USD)",
                 color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold,
@@ -156,26 +205,32 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Available: $${String.format("%,.2f", balance)}",
-                color = NexaDim, fontSize = 11.5.sp, fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(start = 4.dp)
-            )
 
             Spacer(Modifier.height(12.dp))
+
+            // ═══ Quick chips — dynamic based on min ═══
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(20, 50, 100).forEach { preset ->
-                    QuickChip("$$preset", Modifier.weight(1f)) { amount = preset.toDouble().toString() }
+                listOf(
+                    minWithdraw,
+                    minWithdraw * 2,
+                    minWithdraw * 5
+                ).forEach { preset ->
+                    val label = if (preset < 1) "\$${String.format("%.2f", preset)}"
+                                else "\$${preset.toInt()}"
+                    QuickChip(label, Modifier.weight(1f)) {
+                        amount = String.format("%.2f", preset)
+                    }
                 }
-                QuickChip("MAX", Modifier.weight(1f)) { amount = String.format("%.2f", balance) }
+                QuickChip("MAX", Modifier.weight(1f)) {
+                    amount = String.format("%.2f", balance)
+                }
             }
 
             Spacer(Modifier.height(24.dp))
 
-            // Destination
+            // ═══ Destination ═══
             Text(
-                if (selected == "nexa") "RECIPIENT HANDLE" else "DESTINATION ADDRESS",
+                if (selected == "nexa") "RECIPIENT ACCOUNT NUMBER" else "DESTINATION ADDRESS",
                 color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.6.sp, modifier = Modifier.padding(bottom = 12.dp)
             )
@@ -196,7 +251,11 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     Box(Modifier.fillMaxWidth()) {
                         if (dest.isEmpty()) {
                             Text(
-                                if (selected == "nexa") "@username" else if (selected == "usdt") "0x... (BEP20)" else "ltc1...",
+                                when (selected) {
+                                    "nexa" -> "10-digit account number"
+                                    "usdt" -> "0x... (BEP20 address)"
+                                    else   -> "ltc1... (Litecoin address)"
+                                },
                                 color = NexaDim, fontSize = 13.5.sp, fontWeight = FontWeight.Medium
                             )
                         }
@@ -207,7 +266,7 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
             Spacer(Modifier.height(24.dp))
 
-            // Summary
+            // ═══ Summary ═══
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
                     .background(NexaSurface)
@@ -216,12 +275,16 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             ) {
                 Column {
                     KV("Amount", "$${String.format("%,.2f", amt)}", false)
-                    KV("Network fee", "$${String.format("%.2f", fee)}", false)
+                    KV(
+                        if (selected == "nexa") "Transfer fee" else "Network fee",
+                        if (fee == 0.0) "Free" else "$${String.format("%.2f", fee)}",
+                        false
+                    )
                     KV("You'll receive", "$${String.format("%,.2f", net)}", true)
                 }
             }
 
-            // Warning
+            // ═══ Warning ═══
             Row(
                 Modifier.fillMaxWidth().padding(top = 16.dp)
                     .clip(RoundedCornerShape(14.dp))
@@ -232,25 +295,32 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             ) {
                 Icon(Icons.Filled.Info, null, tint = NexaTeal, modifier = Modifier.size(16.dp))
                 Text(
-                    if (selected == "nexa")
-                        "Nexa-to-Nexa transfer is instant with 0% fee. Recipient receives USD balance."
-                    else
-                        "Only send to a valid ${if (selected == "usdt") "BEP20 (BSC)" else "LTC"} address. Wrong network may cause permanent loss.",
-                    color = Color(0xFF7DD3C8), fontSize = 11.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium
+                    when (selected) {
+                        "nexa" ->
+                            "Nexa-to-Nexa transfer is instant with 0% fee. Recipient receives USD balance."
+                        "usdt" ->
+                            "Only send to a valid BEP20 (BSC) address. Wrong network may cause permanent loss. Min withdrawal is 3 USDT."
+                        else ->
+                            "Only send to a valid Litecoin (LTC) address. Wrong network may cause permanent loss. Min withdrawal is 0.002 LTC."
+                    },
+                    color = Color(0xFF7DD3C8), fontSize = 11.5.sp,
+                    lineHeight = 16.sp, fontWeight = FontWeight.Medium
                 )
             }
 
             Spacer(Modifier.height(26.dp))
 
+            // ═══ Submit ═══
             GradientButton(
-                text = "Request Withdrawal",
+                text = if (amt > 0 && amt < minWithdraw)
+                            "Min \$${String.format("%.2f", minWithdraw)} required"
+                        else "Request Withdrawal",
                 enabled = canSubmit,
                 loading = loading,
                 onClick = {
                     scope.launch {
                         loading = true
                         if (selected == "nexa") {
-                            // Send internal USD balance to another Nexa user
                             val res = repo.sendMoney(dest.trim(), amt, prefs.pin ?: "")
                             loading = false
                             res.onSuccess {
