@@ -1,14 +1,12 @@
 package com.nexa.app.ui.screens
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -16,7 +14,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -25,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.nexa.app.R
 import com.nexa.app.ui.animations.SlideLoaderTrack
 import com.nexa.app.ui.animations.fadeUp
+import com.nexa.app.ui.animations.logoIn
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.delay
 
@@ -40,21 +38,22 @@ fun SplashScreen(onDone: () -> Unit) {
             .fillMaxSize()
             .background(NexaBg)
             .drawBehind {
-                // ═══ Background center radial (green@12, center 50%/45%, radius 60%) ═══
-                val bgRadius = size.width * 0.6f
-                val bgCenter = Offset(size.width * 0.5f, size.height * 0.45f)
+                // ═══ Center background radial — subtle green ambient ═══
+                // center (50%, 45%), green@12 → transparent, radius ~75% width
+                val radius = size.width * 0.75f
+                val c = Offset(size.width * 0.5f, size.height * 0.45f)
                 drawCircle(
                     brush = Brush.radialGradient(
                         colorStops = arrayOf(
                             0.00f to NexaGreen.copy(alpha = 0.12f),
-                            0.60f to NexaGreen.copy(alpha = 0.04f),
+                            0.55f to NexaGreen.copy(alpha = 0.04f),
                             1.00f to Color.Transparent
                         ),
-                        center = bgCenter,
-                        radius = bgRadius
+                        center = c,
+                        radius = radius
                     ),
-                    radius = bgRadius,
-                    center = bgCenter
+                    radius = radius,
+                    center = c
                 )
             },
         contentAlignment = Alignment.Center
@@ -64,22 +63,22 @@ fun SplashScreen(onDone: () -> Unit) {
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center
         ) {
-            // ═══════════════════════════════════════════
-            // LOGO with MOON HALO — soft, wide, radiated glow
-            // ═══════════════════════════════════════════
+            // ═══════════════════════════════════════════════
+            // LOGO with MOON HALO — spreading like moonlight
+            // ═══════════════════════════════════════════════
             Box(
-                Modifier.size(270.dp),  // extra space for halo to spread
+                Modifier.size(270.dp),  // extra canvas for halo spread
                 contentAlignment = Alignment.Center
             ) {
-                // ─── Moon halo (spreads all around, soft falloff) ───
+                // ═══ Moon halo layer (background) ═══
+                // 9-stop radial gradient — soft fade across large area
                 Box(
                     Modifier
                         .fillMaxSize()
                         .logoIn(1000)
                         .drawBehind {
-                            val radius = size.minDimension / 2f
-                            val center = center
-                            // Multi-stop radial — smooth fade like moonlight
+                            val radius = this.size.minDimension / 2f
+                            val c = this.center
                             drawCircle(
                                 brush = Brush.radialGradient(
                                     colorStops = arrayOf(
@@ -93,16 +92,16 @@ fun SplashScreen(onDone: () -> Unit) {
                                         0.88f to NexaGreen.copy(alpha = 0.012f),
                                         1.00f to Color.Transparent
                                     ),
-                                    center = center,
+                                    center = c,
                                     radius = radius
                                 ),
                                 radius = radius,
-                                center = center
+                                center = c
                             )
                         }
                 )
 
-                // ─── Actual logo (centered) ───
+                // ═══ Actual logo (on top of halo) ═══
                 Box(
                     Modifier
                         .size(150.dp)
@@ -119,7 +118,7 @@ fun SplashScreen(onDone: () -> Unit) {
 
             Spacer(Modifier.height(26.dp))
 
-            // ═══ NEXA wordmark with gradient ═══
+            // ═══ NEXA wordmark — gradient text ═══
             Text(
                 text = "NEXA",
                 fontSize = 36.sp,
@@ -146,7 +145,7 @@ fun SplashScreen(onDone: () -> Unit) {
             )
         }
 
-        // ═══ Bottom loader with green glow ═══
+        // ═══ Bottom loader — animated slide bar ═══
         Box(
             Modifier
                 .align(Alignment.BottomCenter)
@@ -160,30 +159,5 @@ fun SplashScreen(onDone: () -> Unit) {
                     .clip(RoundedCornerShape(3.dp))
             )
         }
-    }
-}
-
-// ═══════════════════════════════════════════════
-// LOGO-IN ANIMATION — scale, fade, translateY (with blur start)
-// ═══════════════════════════════════════════════
-@Composable
-private fun Modifier.logoIn(durationMs: Int = 1000): Modifier {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        progress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(
-                durationMillis = durationMs,
-                easing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
-            )
-        )
-    }
-    val p = progress.value
-    return this.graphicsLayer {
-        alpha = p
-        val scale = 0.6f + 0.4f * p
-        scaleX = scale
-        scaleY = scale
-        translationY = (1f - p) * 20f
     }
 }
