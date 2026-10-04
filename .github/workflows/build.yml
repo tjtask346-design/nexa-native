@@ -29,10 +29,16 @@ jobs:
         run: gradle wrapper --gradle-version 8.2
 
       - name: Decode Keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           mkdir -p app
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/nexa-release.keystore
+          # Strip ALL whitespace and newlines before decoding
+          printf '%s' "$KEYSTORE_B64" | tr -d ' \n\r\t' | base64 -d > app/nexa-release.keystore
+          echo "Keystore size:"
           ls -la app/nexa-release.keystore
+          echo "First bytes (should be PK or binary):"
+          head -c 20 app/nexa-release.keystore | xxd | head -2
 
       - name: Build Release APK
         env:
