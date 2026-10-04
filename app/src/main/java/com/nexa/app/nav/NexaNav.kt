@@ -20,6 +20,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -43,6 +44,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nexa.app.data.Prefs
 import com.nexa.app.data.Repository
+import com.nexa.app.ui.components.GradientButton
 import com.nexa.app.ui.screens.*
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.delay
@@ -70,14 +72,12 @@ object Routes {
     const val NOTIFICATIONS = "notifications"
 }
 
-// Screens that need KYC verification
 private val KYC_REQUIRED_ROUTES = setOf(
     Routes.HOME, Routes.HISTORY, Routes.PROFILE,
     Routes.DEPOSIT, Routes.WITHDRAW, Routes.MYQR,
     Routes.SCAN, Routes.SEND, Routes.NOTIFICATIONS, Routes.SUCCESS
 )
 
-// Screens that should NOT be blocked by offline wall
 private val OFFLINE_EXEMPT = setOf(
     Routes.LOGIN, Routes.SIGNUP, Routes.PIN,
     Routes.VERIFY_EMAIL, Routes.FORGOT_PIN,
@@ -98,17 +98,30 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
 
     // ═══ KYC status ═══
     var kycStatus by remember { mutableStateOf(prefs.kycStatus) }
-    // ⭐ NEW: Only enforce KYC redirect AFTER we've confirmed from server at least once
     var kycCheckedFromServer by remember { mutableStateOf(false) }
 
+    // ═══ NEW: BAN state ═══
+    var bannedReason by remember { mutableStateOf<String?>(null) }
+
+    // ═══ Combined poll: ban check + KYC status ═══
     LaunchedEffect(Unit) {
         while (true) {
             if (!prefs.token.isNullOrBlank()) {
                 repo.me().onSuccess { res ->
+                    // Ban?
+                    if (res.banned) {
+                        bannedReason = res.reason ?: "Suspicious activity detected on your account."
+                        return@onSuccess
+                    }
                     res.user?.kycStatus?.let { status ->
                         kycStatus = status
                         prefs.kycStatus = status
-                        kycCheckedFromServer = true  // ⭐ mark checked
+                        kycCheckedFromServer = true
+                    }
+                }.onFailure { err ->
+                    val msg = err.message ?: ""
+                    if (msg.contains("banned", true) || msg.contains("suspended", true) || msg.contains("403", false)) {
+                        bannedReason = msg
                     }
                 }
             }
@@ -116,8 +129,9 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
         }
     }
 
-    // ═══ KYC Force — only after server confirms ═══
-    LaunchedEffect(currentPath, kycStatus, kycCheckedFromServer) {
+    // ═══ KYC force (only after server confirms) ═══
+    LaunchedEffect(currentPath, kycStatus, kycCheckedFromServer, bannedReason) {
+        if (bannedReason != null) return@LaunchedEffect
         val loggedIn = !prefs.token.isNullOrBlank()
         if (loggedIn
             && kycCheckedFromServer
@@ -224,8 +238,14 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                                 }
                                 destination = Routes.PIN
                             } else {
-                                try { repo.clearSession() } catch (_: Exception) { }
-                                destination = Routes.LOGIN
+                                val banned = res.getOrNull()?.banned == true
+                                val msg = res.exceptionOrNull()?.message ?: ""
+                                if (banned || msg.contains("banned", true) || msg.contains("suspended", true)) {
+                                    bannedReason = res.getOrNull()?.reason ?: msg
+                                } else {
+                                    try { repo.clearSession() } catch (_: Exception) { }
+                                    destination = Routes.LOGIN
+                                }
                             }
                         }
                     } else {
@@ -315,12 +335,137 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
             }
         }
 
-        if (showOfflineWall) {
+        // ═══ OFFLINE WALL ═══
+        if (showOfflineWall && bannedReason == null) {
             OfflineWall(ctx)
+        }
+
+        // ═══ NEW: BAN OVERLAY (topmost, blocks everything) ═══
+        val reason = bannedReason
+        if (reason != null) {
+            BannedOverlay(reason = reason) {
+                prefs.logout()
+                bannedReason = null
+                kycCheckedFromServer = false
+                nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
+            }
         }
     }
 }
 
+/* ═══════════════════════════════════════════════
+   BAN OVERLAY — force-logout screen
+   ═══════════════════════════════════════════════ */
+@Composable
+private fun BannedOverlay(reason: String, onLogout: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xF5040A07))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = true
+            ) { /* swallow clicks */ },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                Modifier
+                    .size(110.dp)
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(NexaRed.copy(alpha = 0.15f))
+                    .border(1.dp, NexaRed.copy(alpha = 0.4f), RoundedCornerShape(32.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Block,
+                    contentDescription = "Suspended",
+                    tint = NexaRed,
+                    modifier = Modifier.size(52.dp)
+                )
+            }
+
+            Spacer(Modifier.height(28.dp))
+
+            Text(
+                "Account Suspended",
+                color = NexaText,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 24.sp,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                "Your Nexa account has been suspended due to suspicious activity.",
+                color = NexaMuted,
+                fontSize = 13.5.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(NexaRed.copy(alpha = 0.08f))
+                    .border(1.dp, NexaRed.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                    .padding(16.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "REASON",
+                        color = NexaRed,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        reason,
+                        color = NexaRed,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 19.sp
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(30.dp))
+
+            GradientButton(
+                text = "Log Out",
+                onClick = onLogout,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            Text(
+                "Need help? Contact: forsell395@gmail.com",
+                color = NexaDim,
+                fontSize = 11.5.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════════
+   OFFLINE WALL (unchanged)
+   ═══════════════════════════════════════════════ */
 @Composable
 private fun OfflineWall(context: Context) {
     val interaction = remember { MutableInteractionSource() }
