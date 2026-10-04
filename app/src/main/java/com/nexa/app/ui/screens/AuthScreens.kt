@@ -1,5 +1,6 @@
 package com.nexa.app.ui.screens
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
@@ -29,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -45,6 +45,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -55,12 +57,12 @@ import com.nexa.app.nav.Routes
 import com.nexa.app.ui.theme.*
 
 // ═══════════════════════════════════════════════
-// THEME LOCALS
+// LOCAL ALIASES
 // ═══════════════════════════════════════════════
 private val PLACEHOLDER = Color(0xFF3B574A)
 private val BORDER_GREEN_09 = Color(0x174ADE80)
 private val INK = Color(0xFF04140D)
-private val GRAD = listOf(NexaGreen, NexaGreenDark, NexaTeal)
+private val GRAD_COLORS = listOf(NexaGreen, NexaGreenDark, NexaTeal)
 
 // ═══════════════════════════════════════════════
 // AUTH BACKGROUND — 2 fixed radial glows
@@ -72,7 +74,7 @@ private fun AuthBackground(content: @Composable BoxScope.() -> Unit) {
             .fillMaxSize()
             .background(NexaBg)
             .drawBehind {
-                // ═══ Glow A — top-left green ═══
+                // Glow A — top-left green
                 val aRadius = 175.dp.toPx()
                 val aCenter = Offset(90.dp.toPx(), (-10).dp.toPx())
                 drawCircle(
@@ -90,7 +92,7 @@ private fun AuthBackground(content: @Composable BoxScope.() -> Unit) {
                     center = aCenter
                 )
 
-                // ═══ Glow B — right teal ═══
+                // Glow B — right teal
                 val bRadius = 160.dp.toPx()
                 val bCenter = Offset(size.width - 10.dp.toPx(), 290.dp.toPx())
                 drawCircle(
@@ -113,21 +115,24 @@ private fun AuthBackground(content: @Composable BoxScope.() -> Unit) {
 }
 
 // ═══════════════════════════════════════════════
-// LOGO WITH HALO
+// LOGO WITH HALO — FIXED (renamed param)
 // ═══════════════════════════════════════════════
 @Composable
-private fun LogoWithHalo(size: androidx.compose.ui.unit.Dp, cornerRadius: androidx.compose.ui.unit.Dp) {
+private fun LogoWithHalo(
+    logoSize: Dp,
+    cornerRadius: Dp
+) {
     Box(
-        Modifier.size(size + 80.dp),  // extra space for halo
+        Modifier.size(logoSize + 80.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Halo behind
+        // Halo behind (uses DrawScope's size, not param)
         Box(
             Modifier
                 .fillMaxSize()
                 .drawBehind {
-                    val radius = size.minDimension / 2f
-                    val center = center
+                    val radius = this.size.minDimension / 2f
+                    val c = this.center
                     drawCircle(
                         brush = Brush.radialGradient(
                             colorStops = arrayOf(
@@ -138,17 +143,17 @@ private fun LogoWithHalo(size: androidx.compose.ui.unit.Dp, cornerRadius: androi
                                 0.80f to NexaGreen.copy(alpha = 0.02f),
                                 1.00f to Color.Transparent
                             ),
-                            center = center,
+                            center = c,
                             radius = radius
                         ),
                         radius = radius,
-                        center = center
+                        center = c
                     )
                 }
         )
 
         // Logo
-        Box(Modifier.size(size).clip(RoundedCornerShape(cornerRadius))) {
+        Box(Modifier.size(logoSize).clip(RoundedCornerShape(cornerRadius))) {
             Image(
                 painter = painterResource(R.drawable.nexa_logo),
                 contentDescription = "Nexa",
@@ -163,11 +168,15 @@ private fun LogoWithHalo(size: androidx.compose.ui.unit.Dp, cornerRadius: androi
 // GRADIENT TEXT
 // ═══════════════════════════════════════════════
 @Composable
-private fun GradientText(text: String, fontSize: androidx.compose.ui.unit.TextUnit, letterSpacing: androidx.compose.ui.unit.TextUnit) {
+private fun GradientText(
+    text: String,
+    fontSize: TextUnit,
+    letterSpacing: TextUnit
+) {
     Text(
         text = text,
         style = TextStyle(
-            brush = Brush.horizontalGradient(colors = GRAD),
+            brush = Brush.horizontalGradient(colors = GRAD_COLORS),
             fontSize = fontSize,
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = letterSpacing
@@ -206,12 +215,11 @@ private fun AuthInputField(
             .fillMaxWidth()
             .padding(bottom = 14.dp)
     ) {
-        // Outer ring for focus/error
         if (ringColor.alpha > 0f) {
             Box(
                 Modifier
                     .matchParentSize()
-                    .padding(-4.dp)
+                    .padding((-4).dp)
                     .clip(RoundedCornerShape(21.dp))
                     .background(ringColor)
             )
@@ -245,17 +253,27 @@ private fun AuthInputField(
                     letterSpacing = (-0.1).sp
                 ),
                 cursorBrush = SolidColor(NexaGreen),
-                keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = keyboardType,
+                    imeAction = ImeAction.Done
+                ),
                 modifier = Modifier
                     .weight(1f)
                     .onFocusChanged { focused = it.isFocused }
             ) { inner ->
                 Box(
-                    Modifier.fillMaxWidth().padding(vertical = 17.dp),
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 17.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     if (value.isEmpty()) {
-                        Text(placeholder, color = PLACEHOLDER, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            placeholder,
+                            color = PLACEHOLDER,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                     inner()
                 }
@@ -273,16 +291,27 @@ private fun AuthNoteRow(
     text: androidx.compose.ui.text.AnnotatedString
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 2.dp, end = 2.dp, bottom = 20.dp),
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 2.dp, end = 2.dp, bottom = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(9.dp)
     ) {
-        Box(Modifier.size(14.dp).padding(top = 2.dp), contentAlignment = Alignment.TopCenter) { icon() }
-        Text(text = text, color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, lineHeight = 18.sp)
+        Box(
+            Modifier.size(14.dp).padding(top = 2.dp),
+            contentAlignment = Alignment.TopCenter
+        ) { icon() }
+        Text(
+            text = text,
+            color = NexaMuted,
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.Medium,
+            lineHeight = 18.sp
+        )
     }
 }
 
 // ═══════════════════════════════════════════════
-// GRADIENT BUTTON WITH SHINE + GLOW (moon-like spread below)
+// GRADIENT BUTTON WITH SHINE + CORONA GLOW
 // ═══════════════════════════════════════════════
 @Composable
 private fun AuthGradientButton(
@@ -298,7 +327,7 @@ private fun AuthGradientButton(
         label = "btnScale"
     )
 
-    // Shine — 3.2s cycle, sweep in last 40%
+    // Shine animation — 3.2s cycle, sweep in last 40%
     val transition = rememberInfiniteTransition(label = "shine")
     val shineProgress by transition.animateFloat(
         initialValue = 0f,
@@ -313,14 +342,14 @@ private fun AuthGradientButton(
         ),
         label = "shine"
     )
-    val shineX = -0.6f + (1.9f * shineProgress)
+    val shineX: Float = -0.6f + (1.9f * shineProgress)
 
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(bottom = 14.dp)  // room for glow below
+            .padding(bottom = 14.dp)
     ) {
-        // ═══ Glow below button (spreads downward like moon corona) ═══
+        // Corona glow below button
         if (enabled && !loading) {
             Box(
                 Modifier
@@ -329,9 +358,8 @@ private fun AuthGradientButton(
                     .align(Alignment.BottomCenter)
                     .offset(y = 6.dp)
                     .drawBehind {
-                        // Radial glow at bottom-center
-                        val radius = size.width * 0.65f
-                        val center = Offset(size.width / 2f, size.height * 0.35f)
+                        val radius = this.size.width * 0.65f
+                        val center = Offset(this.size.width / 2f, this.size.height * 0.35f)
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colorStops = arrayOf(
@@ -352,21 +380,20 @@ private fun AuthGradientButton(
             )
         }
 
-        // ═══ Button itself ═══
+        // Button
         Box(
             Modifier
                 .fillMaxWidth()
                 .graphicsLayer { scaleX = scale; scaleY = scale }
                 .clip(RoundedCornerShape(17.dp))
                 .background(
-                    if (enabled && !loading) Brush.linearGradient(colors = GRAD)
+                    if (enabled && !loading) Brush.linearGradient(colors = GRAD_COLORS)
                     else Brush.linearGradient(colors = listOf(NexaDim, NexaDim))
                 )
                 .drawBehind {
-                    // Shine strip
                     if (enabled && !loading) {
-                        val w = size.width
-                        val h = size.height
+                        val w = this.size.width
+                        val h = this.size.height
                         val stripW = w * 0.4f
                         val startX = w * shineX
                         drawRect(
@@ -386,7 +413,8 @@ private fun AuthGradientButton(
                 }
                 .border(
                     width = 1.dp,
-                    color = if (enabled && !loading) NexaGreen.copy(alpha = 0.30f) else Color.Transparent,
+                    color = if (enabled && !loading) NexaGreen.copy(alpha = 0.30f)
+                            else Color.Transparent,
                     shape = RoundedCornerShape(17.dp)
                 )
                 .clickable(
@@ -456,7 +484,12 @@ private fun AuthDivider(text: String) {
 // TRUST CHIP
 // ═══════════════════════════════════════════════
 @Composable
-private fun TrustChip(emoji: String, bold: String, normal: String, boldColor: Color = NexaGreen) {
+private fun TrustChip(
+    emoji: String,
+    bold: String,
+    normal: String,
+    boldColor: Color = NexaGreen
+) {
     Row(
         Modifier
             .clip(RoundedCornerShape(11.dp))
@@ -497,16 +530,28 @@ fun LoginScreen(nav: NavController, prefs: Prefs) {
         ) {
             Spacer(Modifier.height(56.dp))
 
-            LogoWithHalo(size = 88.dp, cornerRadius = 24.dp)
+            LogoWithHalo(logoSize = 88.dp, cornerRadius = 24.dp)
             Spacer(Modifier.height(8.dp))
             GradientText(text = "NEXA", fontSize = 14.sp, letterSpacing = 6.sp)
 
             Spacer(Modifier.height(30.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Welcome ", color = NexaText, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.7).sp)
+                Text(
+                    "Welcome ",
+                    color = NexaText,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.7).sp
+                )
                 GradientText(text = "back", fontSize = 26.sp, letterSpacing = (-0.7).sp)
-                Text(" 👋", color = NexaText, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.7).sp)
+                Text(
+                    " 👋",
+                    color = NexaText,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.7).sp
+                )
             }
 
             Spacer(Modifier.height(8.dp))
@@ -526,14 +571,29 @@ fun LoginScreen(nav: NavController, prefs: Prefs) {
                 value = email,
                 onChange = { email = it; if (emailError) emailError = false },
                 placeholder = "you@example.com",
-                leadingIcon = { Icon(Icons.Filled.Mail, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Filled.Mail,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
                 error = emailError,
                 keyboardType = KeyboardType.Email
             )
 
             AuthNoteRow(
-                icon = { Icon(Icons.Filled.Lock, contentDescription = null, tint = NexaTeal, modifier = Modifier.size(14.dp)) },
-                text = buildAnnotatedString { append("Secured with a 5-digit PIN & fingerprint. No passwords to remember.") }
+                icon = {
+                    Icon(
+                        Icons.Filled.Lock,
+                        contentDescription = null,
+                        tint = NexaTeal,
+                        modifier = Modifier.size(14.dp)
+                    )
+                },
+                text = buildAnnotatedString {
+                    append("Secured with a 5-digit PIN & fingerprint. No passwords to remember.")
+                }
             )
 
             AuthGradientButton(
@@ -556,7 +616,10 @@ fun LoginScreen(nav: NavController, prefs: Prefs) {
 
             Spacer(Modifier.height(10.dp))
 
-            AuthSwitchRow("Don't have an account? ", "Sign up") { nav.navigate(Routes.SIGNUP) }
+            AuthSwitchRow(
+                prefix = "Don't have an account? ",
+                action = "Sign up"
+            ) { nav.navigate(Routes.SIGNUP) }
 
             AuthDivider("SECURE & TRUSTED")
 
@@ -595,14 +658,20 @@ fun SignupScreen(nav: NavController, prefs: Prefs) {
         ) {
             Spacer(Modifier.height(40.dp))
 
-            LogoWithHalo(size = 88.dp, cornerRadius = 24.dp)
+            LogoWithHalo(logoSize = 88.dp, cornerRadius = 24.dp)
             Spacer(Modifier.height(8.dp))
             GradientText(text = "NEXA", fontSize = 14.sp, letterSpacing = 6.sp)
 
             Spacer(Modifier.height(30.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Create your ", color = NexaText, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.7).sp)
+                Text(
+                    "Create your ",
+                    color = NexaText,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.7).sp
+                )
                 GradientText(text = "account", fontSize = 26.sp, letterSpacing = (-0.7).sp)
             }
 
@@ -623,7 +692,13 @@ fun SignupScreen(nav: NavController, prefs: Prefs) {
                 value = email,
                 onChange = { email = it; if (emailError) emailError = false },
                 placeholder = "you@example.com",
-                leadingIcon = { Icon(Icons.Filled.Mail, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Filled.Mail,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
                 error = emailError,
                 keyboardType = KeyboardType.Email
             )
@@ -632,17 +707,34 @@ fun SignupScreen(nav: NavController, prefs: Prefs) {
                 value = name,
                 onChange = { name = it },
                 placeholder = "Full name",
-                leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Filled.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
                 keyboardType = KeyboardType.Text
             )
 
             AuthNoteRow(
-                icon = { Icon(Icons.Filled.Check, contentDescription = null, tint = NexaTeal, modifier = Modifier.size(14.dp)) },
+                icon = {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = NexaTeal,
+                        modifier = Modifier.size(14.dp)
+                    )
+                },
                 text = buildAnnotatedString {
                     append("By signing up you agree to our ")
-                    withStyle(SpanStyle(color = NexaTeal, fontWeight = FontWeight.Bold)) { append("Terms") }
+                    withStyle(SpanStyle(color = NexaTeal, fontWeight = FontWeight.Bold)) {
+                        append("Terms")
+                    }
                     append(" & ")
-                    withStyle(SpanStyle(color = NexaTeal, fontWeight = FontWeight.Bold)) { append("Privacy Policy") }
+                    withStyle(SpanStyle(color = NexaTeal, fontWeight = FontWeight.Bold)) {
+                        append("Privacy Policy")
+                    }
                     append(".")
                 }
             )
@@ -670,7 +762,10 @@ fun SignupScreen(nav: NavController, prefs: Prefs) {
 
             Spacer(Modifier.height(10.dp))
 
-            AuthSwitchRow("Already have an account? ", "Log in") { nav.navigate(Routes.LOGIN) }
+            AuthSwitchRow(
+                prefix = "Already have an account? ",
+                action = "Log in"
+            ) { nav.navigate(Routes.LOGIN) }
 
             AuthDivider("WHY NEXA")
 
