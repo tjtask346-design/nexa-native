@@ -16,19 +16,15 @@ object NexaConfig {
     const val ADMIN_BKASH_NAME = "Nexa Admin"
     const val MIN_DEPOSIT_USD = 10.0
 
-    // USDT (BEP20) Withdrawal
     const val MIN_WITHDRAW_USDT_USD = 3.0
     const val NETWORK_FEE_USDT_USD = 0.30
 
-    // LTC Withdrawal
     const val MIN_WITHDRAW_LTC_USD = 1.0
     const val NETWORK_FEE_LTC_USD = 0.10
 
-    // Nexa internal
     const val MIN_WITHDRAW_NEXA_USD = 20.0
     const val NETWORK_FEE_NEXA_USD = 0.0
 
-    // Legacy
     const val MIN_WITHDRAW_USD = 20.0
 }
 
@@ -77,6 +73,16 @@ data class MeResponse(
     val message: String? = null,
     val banned: Boolean = false,
     val reason: String? = null
+)
+
+data class VersionResponse(
+    val success: Boolean = false,
+    val latestVersion: Int = 1,
+    val latestVersionName: String = "1.0.0",
+    val minVersion: Int = 1,
+    val forceUpdate: Boolean = false,
+    val updateUrl: String = "",
+    val releaseNotes: String = ""
 )
 
 data class Transaction(
@@ -246,6 +252,9 @@ interface NexaApi {
         @Header("Authorization") token: String,
         @Path("id") id: String
     ): SimpleResponse
+
+    @GET("/api/version")
+    suspend fun checkVersion(@Query("app") app: String = "user"): VersionResponse
 }
 
 object ApiClient {
