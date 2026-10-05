@@ -19,7 +19,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
@@ -45,50 +44,96 @@ private val WITHDRAW_OPTIONS = listOf(
     Triple("nexa", "Nexa User", NexaGreen)
 )
 
+private val NEXA_SUB_OPTIONS = listOf(
+    "usdt" to "USDT",
+    "ltc"  to "LTC"
+)
+
 @Composable
 fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var selected by remember { mutableStateOf("usdt") }
+    var nexaSubCurrency by remember { mutableStateOf("usdt") } // for Nexa User tab
     var amount by remember { mutableStateOf("") }
     var dest by remember { mutableStateOf("") }
-    var balance by remember { mutableStateOf(0.0) }
+    var balanceUsd by remember { mutableStateOf(0.0) }
+    var balanceLtc by remember { mutableStateOf(0.0) }
     var loading by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        repo.me().onSuccess { it.user?.let { u -> balance = u.balance } }
+        repo.me().onSuccess { res ->
+            res.user?.let { u ->
+                balanceUsd = u.balance
+                balanceLtc = u.ltcBalance
+            }
+        }
     }
 
     val amt = amount.toDoubleOrNull() ?: 0.0
 
-    // ═══════════════════════════════════════════
-    // Per-currency: min + network fee
-    // ═══════════════════════════════════════════
-    val minWithdraw = when (selected) {
-        "usdt" -> NexaConfig.MIN_WITHDRAW_USDT_USD
-        "ltc"  -> NexaConfig.MIN_WITHDRAW_LTC_USD
-        else   -> NexaConfig.MIN_WITHDRAW_NEXA_USD
-    }
-    val fee = when (selected) {
-        "usdt" -> NexaConfig.NETWORK_FEE_USDT_USD
-        "ltc"  -> NexaConfig.NETWORK_FEE_LTC_USD
-        else   -> NexaConfig.NETWORK_FEE_NEXA_USD
+    // ═══ Effective currency for calculations ═══
+    // If "nexa" tab selected, use the sub-currency
+    val effectiveCurrency = if (selected == "nexa") nexaSubCurrency else selected
+
+    // ═══ Min + fee based on effective currency + context ═══
+    val minWithdraw: Double
+    val fee: Double
+    val availableBalance: Double
+
+    when (effectiveCurrency) {
+        "usdt" -> {
+            if (selected == "nexa") {
+                // Internal Nexa transfer — very low min, free
+                minWithdraw = 0.02
+                fee = 0.0
+                availableBalance = balanceUsd
+            } else {
+                // External USDT withdrawal
+                minWithdraw = NexaConfig.MIN_WITHDRAW_USDT_USD
+                fee = NexaConfig.NETWORK_FEE_USDT_USD
+                availableBalance = balanceUsd
+            }
+        }
+        "ltc" -> {
+            if (selected == "nexa") {
+                // Internal LTC transfer — very low min, free
+                minWithdraw = 0.0001
+                fee = 0.0
+                availableBalance = balanceLtc
+            } else {
+                // External LTC withdrawal
+                minWithdraw = 0.0005
+                fee = NexaConfig.NETWORK_FEE_LTC_USD
+                availableBalance = balanceLtc
+            }
+        }
+        else -> {
+            minWithdraw = NexaConfig.MIN_WITHDRAW_NEXA_USD
+            fee = 0.0
+            availableBalance = balanceUsd
+        }
     }
 
     val net = (amt - fee).coerceAtLeast(0.0)
-    val canSubmit = !loading && amt >= minWithdraw && amt <= balance && dest.isNotBlank()
+    val canSubmit = !loading && amt >= minWithdraw && amt <= availableBalance && dest.isNotBlank()
 
-    // Helper labels for info card
-    val minLabel = when (selected) {
-        "usdt" -> "Minimum: 3 USDT (\$3.00)"
-        "ltc"  -> "Minimum: 0.012 LTC (\$1.00)"
+    // ═══ Labels ═══
+    val minLabel = when (effectiveCurrency) {
+        "usdt" -> if (selected == "nexa") "Minimum: \$0.02" else "Minimum: 3 USDT (\$3.00)"
+        "ltc"  -> if (selected == "nexa") "Minimum: 0.0001 LTC" else "Minimum: 0.0005 LTC"
         else   -> "Minimum: \$20.00"
     }
     val feeLabel = if (fee == 0.0) "Network fee: Free"
                    else "Network fee: \$${String.format("%.2f", fee)}"
+    val availableLabel = when (effectiveCurrency) {
+        "ltc" -> "Available: ${String.format("%.6f", availableBalance)} LTC"
+        else  -> "Available: \$${String.format("%,.2f", availableBalance)}"
+    }
 
     Column(Modifier.fillMaxSize().background(NexaBg)) {
+        // Header
         Row(
             Modifier.fillMaxWidth().padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -109,14 +154,14 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)
         ) {
-            // ═══ Crypto picker ═══
+            // ═══ Main tabs ═══
             Text(
-                "CHOOSE CRYPTOCURRENCY",
+                "CHOOSE METHOD",
                 color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.6.sp, modifier = Modifier.padding(bottom = 12.dp)
             )
             Row(
-                Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                Modifier.fillMaxWidth().padding(bottom = if (selected == "nexa") 12.dp else 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 WITHDRAW_OPTIONS.forEach { (key, label, color) ->
@@ -133,16 +178,67 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
-                            ) { selected = key; dest = "" }
+                            ) {
+                                selected = key
+                                dest = ""
+                                amount = ""
+                            }
                             .padding(vertical = 14.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(label, color = if (isSel) color else NexaMuted, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                        Text(
+                            label,
+                            color = if (isSel) color else NexaMuted,
+                            fontWeight = FontWeight.Bold, fontSize = 12.sp
+                        )
                     }
                 }
             }
 
-            // ═══ Info card: min + fee + available ═══
+            // ═══ Sub-currency selector (only for Nexa User) ═══
+            if (selected == "nexa") {
+                Text(
+                    "SELECT TOKEN",
+                    color = NexaMuted, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.6.sp, modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    NEXA_SUB_OPTIONS.forEach { (key, label) ->
+                        val isSel = nexaSubCurrency == key
+                        val accentColor = if (key == "ltc") Color(0xFF345D9D) else Color(0xFF26A17B)
+                        Box(
+                            Modifier.weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSel) accentColor.copy(alpha = 0.15f) else NexaSurface)
+                                .border(
+                                    1.5.dp,
+                                    if (isSel) accentColor.copy(alpha = 0.6f) else NexaBorder.copy(alpha = 0.09f),
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    nexaSubCurrency = key
+                                    amount = ""
+                                }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                label,
+                                color = if (isSel) accentColor else NexaMuted,
+                                fontWeight = FontWeight.Bold, fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ═══ Info card ═══
             Box(
                 Modifier.fillMaxWidth().padding(bottom = 20.dp)
                     .clip(RoundedCornerShape(14.dp))
@@ -153,28 +249,16 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(Icons.Filled.Info, null, tint = NexaTeal, modifier = Modifier.size(16.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            minLabel,
-                            color = Color(0xFF7DD3C8), fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            feeLabel,
-                            color = Color(0xFF7DD3C8), fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            "Available: $${String.format("%,.2f", balance)}",
-                            color = NexaDim, fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Text(minLabel, color = Color(0xFF7DD3C8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(feeLabel, color = Color(0xFF7DD3C8), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text(availableLabel, color = NexaDim, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
 
             // ═══ Amount ═══
             Text(
-                "AMOUNT (USD)",
+                if (effectiveCurrency == "ltc") "AMOUNT (LTC)" else "AMOUNT (USD)",
                 color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.6.sp, modifier = Modifier.padding(bottom = 12.dp)
             )
@@ -185,11 +269,20 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     .padding(horizontal = 18.dp, vertical = 16.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("$", color = NexaGreen, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(
+                        if (effectiveCurrency == "ltc") "Ł" else "$",
+                        color = NexaGreen, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold
+                    )
                     Spacer(Modifier.width(6.dp))
                     BasicTextField(
                         value = amount,
-                        onValueChange = { if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) amount = it },
+                        onValueChange = {
+                            val re = if (effectiveCurrency == "ltc")
+                                Regex("^\\d*\\.?\\d{0,6}$")
+                            else
+                                Regex("^\\d*\\.?\\d{0,2}$")
+                            if (it.isEmpty() || it.matches(re)) amount = it
+                        },
                         singleLine = true,
                         textStyle = TextStyle(color = NexaText, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold),
                         cursorBrush = SolidColor(NexaGreen),
@@ -208,21 +301,36 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
             Spacer(Modifier.height(12.dp))
 
-            // ═══ Quick chips — dynamic based on min ═══
+            // ═══ Quick chips ═══
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    minWithdraw,
-                    minWithdraw * 2,
-                    minWithdraw * 5
-                ).forEach { preset ->
-                    val label = if (preset < 1) "\$${String.format("%.2f", preset)}"
-                                else "\$${preset.toInt()}"
-                    QuickChip(label, Modifier.weight(1f)) {
-                        amount = String.format("%.2f", preset)
+                if (effectiveCurrency == "ltc") {
+                    val presets = if (selected == "nexa")
+                        listOf(0.0005, 0.001, 0.005)
+                    else
+                        listOf(0.001, 0.005, 0.01)
+                    presets.forEach { preset ->
+                        QuickChip("${preset}", Modifier.weight(1f)) {
+                            amount = preset.toString()
+                        }
+                    }
+                } else {
+                    val presets = if (selected == "nexa")
+                        listOf(0.10, 1.0, 5.0)
+                    else
+                        listOf(3.0, 10.0, 25.0)
+                    presets.forEach { preset ->
+                        val label = if (preset < 1) "\$${String.format("%.2f", preset)}"
+                                    else "\$${preset.toInt()}"
+                        QuickChip(label, Modifier.weight(1f)) {
+                            amount = String.format("%.2f", preset)
+                        }
                     }
                 }
                 QuickChip("MAX", Modifier.weight(1f)) {
-                    amount = String.format("%.2f", balance)
+                    amount = if (effectiveCurrency == "ltc")
+                        String.format("%.6f", availableBalance)
+                    else
+                        String.format("%.2f", availableBalance)
                 }
             }
 
@@ -230,7 +338,8 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
             // ═══ Destination ═══
             Text(
-                if (selected == "nexa") "RECIPIENT ACCOUNT NUMBER" else "DESTINATION ADDRESS",
+                if (selected == "nexa") "RECIPIENT ACCOUNT NUMBER"
+                else "DESTINATION ADDRESS",
                 color = NexaMuted, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.6.sp, modifier = Modifier.padding(bottom = 12.dp)
             )
@@ -251,10 +360,10 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     Box(Modifier.fillMaxWidth()) {
                         if (dest.isEmpty()) {
                             Text(
-                                when (selected) {
-                                    "nexa" -> "10-digit account number"
-                                    "usdt" -> "0x... (BEP20 address)"
-                                    else   -> "ltc1... (Litecoin address)"
+                                when {
+                                    selected == "nexa" -> "10-digit account number"
+                                    selected == "usdt" -> "0x... (BEP20 address)"
+                                    else               -> "ltc1... (Litecoin address)"
                                 },
                                 color = NexaDim, fontSize = 13.5.sp, fontWeight = FontWeight.Medium
                             )
@@ -274,13 +383,22 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     .padding(horizontal = 18.dp, vertical = 6.dp)
             ) {
                 Column {
-                    KV("Amount", "$${String.format("%,.2f", amt)}", false)
+                    val amtDisplay = if (effectiveCurrency == "ltc")
+                        "${amt} LTC"
+                    else
+                        "\$${String.format("%,.2f", amt)}"
+                    val feeDisplay = if (fee == 0.0) "Free" else "\$${String.format("%.2f", fee)}"
+                    val netDisplay = if (effectiveCurrency == "ltc")
+                        "${(net * 1.0)} LTC"
+                    else
+                        "\$${String.format("%,.2f", net)}"
+
+                    KV("Amount", amtDisplay, false)
                     KV(
                         if (selected == "nexa") "Transfer fee" else "Network fee",
-                        if (fee == 0.0) "Free" else "$${String.format("%.2f", fee)}",
-                        false
+                        feeDisplay, false
                     )
-                    KV("You'll receive", "$${String.format("%,.2f", net)}", true)
+                    KV("You'll receive", netDisplay, true)
                 }
             }
 
@@ -295,13 +413,15 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             ) {
                 Icon(Icons.Filled.Info, null, tint = NexaTeal, modifier = Modifier.size(16.dp))
                 Text(
-                    when (selected) {
-                        "nexa" ->
-                            "Nexa-to-Nexa transfer is instant with 0% fee. Recipient receives USD balance."
-                        "usdt" ->
+                    when {
+                        selected == "nexa" && effectiveCurrency == "ltc" ->
+                            "Nexa-to-Nexa LTC transfer is instant with 0% fee. Recipient receives LTC balance."
+                        selected == "nexa" ->
+                            "Nexa-to-Nexa USDT transfer is instant with 0% fee. Recipient receives USDT balance."
+                        selected == "usdt" ->
                             "Only send to a valid BEP20 (BSC) address. Wrong network may cause permanent loss. Min withdrawal is 3 USDT."
                         else ->
-                            "Only send to a valid Litecoin (LTC) address. Wrong network may cause permanent loss. Min withdrawal is 0.002 LTC."
+                            "Only send to a valid Litecoin (LTC) address. Wrong network may cause permanent loss. Min withdrawal is 0.0005 LTC."
                     },
                     color = Color(0xFF7DD3C8), fontSize = 11.5.sp,
                     lineHeight = 16.sp, fontWeight = FontWeight.Medium
@@ -313,7 +433,8 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             // ═══ Submit ═══
             GradientButton(
                 text = if (amt > 0 && amt < minWithdraw)
-                            "Min \$${String.format("%.2f", minWithdraw)} required"
+                            "Min ${if (effectiveCurrency == "ltc") "$minWithdraw LTC" else "\$${String.format("%.2f", minWithdraw)}"} required"
+                        else if (selected == "nexa") "Send to Nexa User"
                         else "Request Withdrawal",
                 enabled = canSubmit,
                 loading = loading,
@@ -321,21 +442,27 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     scope.launch {
                         loading = true
                         if (selected == "nexa") {
-                            val res = repo.sendMoney(dest.trim(), amt, prefs.pin ?: "")
+                            // ═══ Internal Nexa transfer with currency ═══
+                            val res = repo.sendMoney(dest.trim(), amt, prefs.pin ?: "", effectiveCurrency)
                             loading = false
                             res.onSuccess {
                                 Toast.makeText(ctx, "Sent ✓", Toast.LENGTH_SHORT).show()
-                                nav.navigate(Routes.SUCCESS + "?kind=send&amount=$amt&id=${dest.trim()}") { popUpTo(Routes.HOME) }
+                                nav.navigate(Routes.SUCCESS + "?kind=send&amount=$amt&id=${dest.trim()}") {
+                                    popUpTo(Routes.HOME)
+                                }
                             }.onFailure {
                                 Toast.makeText(ctx, it.message ?: "Failed", Toast.LENGTH_LONG).show()
                             }
                         } else {
+                            // ═══ External on-chain withdraw ═══
                             val res = repo.withdrawCrypto(dest.trim(), amt)
                             loading = false
                             res.onSuccess { r ->
                                 if (r.success) {
                                     Toast.makeText(ctx, "Withdrawal requested ✓", Toast.LENGTH_SHORT).show()
-                                    nav.navigate(Routes.SUCCESS + "?kind=withdraw&amount=$amt") { popUpTo(Routes.HOME) }
+                                    nav.navigate(Routes.SUCCESS + "?kind=withdraw&amount=$amt") {
+                                        popUpTo(Routes.HOME)
+                                    }
                                 } else {
                                     Toast.makeText(ctx, r.message ?: "Failed", Toast.LENGTH_LONG).show()
                                 }
@@ -359,7 +486,12 @@ private fun KV(label: String, value: String, total: Boolean) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, color = NexaMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        Text(value, color = if (total) NexaGreen else NexaText, fontSize = if (total) 15.sp else 13.sp, fontWeight = FontWeight.Bold)
+        Text(
+            value,
+            color = if (total) NexaGreen else NexaText,
+            fontSize = if (total) 15.sp else 13.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -368,8 +500,12 @@ private fun QuickChip(label: String, modifier: Modifier, onClick: () -> Unit) {
     Box(
         modifier.clip(RoundedCornerShape(14.dp)).background(NexaSurface)
             .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(14.dp))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
             .padding(vertical = 11.dp),
         contentAlignment = Alignment.Center
-    ) { Text(label, color = NexaText, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+    ) { Text(label, color = NexaText, fontWeight = FontWeight.Bold, fontSize = 12.5.sp) }
 }
