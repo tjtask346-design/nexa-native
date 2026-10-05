@@ -134,7 +134,7 @@ fun SuccessScreen(nav: NavController, kind: String, amount: String, id: String) 
         ) {
             Column {
                 KV("Amount", "$${String.format("%,.2f", amount.toDoubleOrNull() ?: 0.0)}")
-                KV("Method", "bKash")
+                KV("Method", "Nexa")
                 KV("Transaction ID", id)
                 Row(
                     Modifier.fillMaxWidth().padding(vertical = 11.dp),
