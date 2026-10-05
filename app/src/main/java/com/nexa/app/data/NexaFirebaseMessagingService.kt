@@ -18,10 +18,7 @@ class NexaFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // Save locally — will sync to backend when app next opens
-        try {
-            Prefs(applicationContext).fcmToken = token
-        } catch (_: Exception) { }
+        try { Prefs(applicationContext).fcmToken = token } catch (_: Exception) { }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -35,10 +32,11 @@ class NexaFirebaseMessagingService : FirebaseMessagingService() {
             ?: message.data["body"]
             ?: ""
 
-        showNotification(title, body)
+        val dataMap = message.data.toMap()
+        showNotification(title, body, dataMap)
     }
 
-    private fun showNotification(title: String, body: String) {
+    private fun showNotification(title: String, body: String, data: Map<String, String>) {
         val channelId = "nexa_default"
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -59,10 +57,19 @@ class NexaFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_NEW_TASK
+            putExtra("from_fcm", true)
+            data.forEach { (k, v) -> putExtra("fcm_$k", v) }
         }
+
+        val requestCode = System.currentTimeMillis().toInt()
+
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
+            this,
+            requestCode,
+            intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
@@ -78,6 +85,6 @@ class NexaFirebaseMessagingService : FirebaseMessagingService() {
             .setContentIntent(pendingIntent)
             .build()
 
-        manager.notify(Random.nextInt(1000, 9999), notification)
+        manager.notify(requestCode, notification)
     }
 }
