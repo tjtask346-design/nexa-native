@@ -94,6 +94,9 @@ class Repository(private val prefs: Prefs) {
     suspend fun deleteNotification(id: String): Result<SimpleResponse> =
         withContext(Dispatchers.IO) { wrap { api.deleteNotification(authHeader(), id) } }
 
+    suspend fun checkVersion(): Result<VersionResponse> =
+        withContext(Dispatchers.IO) { wrap { api.checkVersion("user") } }
+
     fun saveSession(token: String?, user: User?) {
         prefs.token = token
         prefs.email = user?.email
