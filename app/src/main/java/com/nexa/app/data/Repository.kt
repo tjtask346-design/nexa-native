@@ -55,8 +55,17 @@ class Repository(private val prefs: Prefs) {
         withContext(Dispatchers.IO) { wrap { api.depositRequest(authHeader(), DepositRequest(amount, trxId, methodNumber)) } }
     suspend fun cashout(amount: Double, methodNumber: String?): Result<AuthResponse> =
         withContext(Dispatchers.IO) { wrap { api.cashoutRequest(authHeader(), CashoutRequest(amount, methodNumber)) } }
-    suspend fun sendMoney(receiverUid: String, amount: Double, pin: String): Result<AuthResponse> =
-        withContext(Dispatchers.IO) { wrap { api.sendMoney(authHeader(), SendMoneyRequest(receiverUid, amount, pin)) } }
+
+    suspend fun sendMoney(
+        receiverUid: String,
+        amount: Double,
+        pin: String,
+        currency: String = "usdt"
+    ): Result<AuthResponse> =
+        withContext(Dispatchers.IO) {
+            wrap { api.sendMoney(authHeader(), SendMoneyRequest(receiverUid, amount, pin, currency)) }
+        }
+
     suspend fun withdrawCrypto(toAddress: String, amount: Double): Result<SimpleResponse> =
         withContext(Dispatchers.IO) {
             wrap { api.withdrawOnchain(authHeader(), WithdrawOnchainRequest(toAddress, amount)) }
@@ -71,7 +80,6 @@ class Repository(private val prefs: Prefs) {
             wrap { api.saveFcmToken(authHeader(), FcmTokenRequest(fcmToken)) }
         }
 
-    // ═══ NEW: Update avatar URL on backend ═══
     suspend fun updateAvatar(avatarUrl: String): Result<UpdateAvatarResponse> =
         withContext(Dispatchers.IO) {
             wrap { api.updateAvatar(authHeader(), UpdateAvatarRequest(avatarUrl)) }
@@ -91,12 +99,12 @@ class Repository(private val prefs: Prefs) {
         prefs.email = user?.email
         prefs.name = user?.displayName
         prefs.accountNumber = user?.accountNumber
-        prefs.avatarUrl = user?.avatarUrl   // ← NEW: sync from backend
+        prefs.avatarUrl = user?.avatarUrl
         prefs.fcmTokenSynced = false
     }
     fun savePin(pin: String) { prefs.pin = pin }
     fun clearSession() {
         FirebaseAuthHelper.signOut()
-        prefs.logout()   // ← preserves avatar + fcm token + account number
+        prefs.logout()
     }
 }
