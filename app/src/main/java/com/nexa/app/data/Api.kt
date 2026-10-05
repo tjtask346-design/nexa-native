@@ -16,29 +16,19 @@ object NexaConfig {
     const val ADMIN_BKASH_NAME = "Nexa Admin"
     const val MIN_DEPOSIT_USD = 10.0
 
-    // ═══════════════════════════════════════════════
-    // USDT (BEP20 / BSC) Withdrawal
-    // ═══════════════════════════════════════════════
-    // Binance minimum = 3 USDT (safe above their limit)
+    // USDT (BEP20) Withdrawal
     const val MIN_WITHDRAW_USDT_USD = 3.0
-    // Worst-case network fee (congestion buffer). Typical ~$0.02
     const val NETWORK_FEE_USDT_USD = 0.30
 
-    // ═══════════════════════════════════════════════
-    // LTC (Litecoin) Withdrawal
-    // ═══════════════════════════════════════════════
-    // Binance minimum = 0.002 LTC ≈ $0.17. We set $1 for better UX.
+    // LTC Withdrawal
     const val MIN_WITHDRAW_LTC_USD = 1.0
-    // Worst-case LTC network fee (typical ~$0.001, we use buffer)
     const val NETWORK_FEE_LTC_USD = 0.10
 
-    // ═══════════════════════════════════════════════
-    // Nexa internal (Nexa→Nexa) — free
-    // ═══════════════════════════════════════════════
+    // Nexa internal
     const val MIN_WITHDRAW_NEXA_USD = 20.0
     const val NETWORK_FEE_NEXA_USD = 0.0
 
-    // Legacy (backward compatibility — If any old screen uses this)
+    // Legacy
     const val MIN_WITHDRAW_USD = 20.0
 }
 
@@ -56,6 +46,7 @@ data class User(
     val accountNumber: String = "",
     val role: String = "user",
     val balance: Double = 0.0,
+    val ltcBalance: Double = 0.0,
     val uid: String? = null,
     val kycStatus: String = "unverified",
     val totpEnabled: Boolean = false,
@@ -93,6 +84,7 @@ data class Transaction(
     val id: String? = null,
     val type: String = "",
     val amount: Double = 0.0,
+    val currency: String = "usdt",
     val status: String = "pending",
     val trxId: String? = null,
     val senderUid: String? = null,
@@ -136,7 +128,12 @@ data class LoginPinRequest(val email: String, val pin: String, val code: String?
 data class DepositRequest(val amount: Double, val trxId: String, val paymentMethodNumber: String? = null)
 data class CashoutRequest(val amount: Double, val paymentMethodNumber: String? = null)
 data class WithdrawOnchainRequest(val to: String, val amount: Double)
-data class SendMoneyRequest(val receiverUid: String, val amount: Double, val pin: String)
+data class SendMoneyRequest(
+    val receiverUid: String,
+    val amount: Double,
+    val pin: String,
+    val currency: String = "usdt"
+)
 
 data class SetupTotpResponse(
     val success: Boolean = false,
