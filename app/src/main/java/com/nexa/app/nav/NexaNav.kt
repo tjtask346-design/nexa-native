@@ -42,8 +42,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.nexa.app.data.NavIntent
 import com.nexa.app.data.Prefs
 import com.nexa.app.data.Repository
+import com.nexa.app.data.VersionResponse
 import com.nexa.app.ui.components.GradientButton
 import com.nexa.app.ui.screens.*
 import com.nexa.app.ui.theme.*
@@ -96,19 +98,21 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
     val backStackEntry by nav.currentBackStackEntryAsState()
     val currentPath = backStackEntry?.destination?.route?.substringBefore("?") ?: ""
 
-    // ═══ KYC status ═══
+    // ═══ KYC state ═══
     var kycStatus by remember { mutableStateOf(prefs.kycStatus) }
     var kycCheckedFromServer by remember { mutableStateOf(false) }
 
-    // ═══ NEW: BAN state ═══
+    // ═══ BAN state ═══
     var bannedReason by remember { mutableStateOf<String?>(null) }
+
+    // ═══ FORCE UPDATE state ═══
+    var forceUpdateInfo by remember { mutableStateOf<VersionResponse?>(null) }
 
     // ═══ Combined poll: ban check + KYC status ═══
     LaunchedEffect(Unit) {
         while (true) {
             if (!prefs.token.isNullOrBlank()) {
                 repo.me().onSuccess { res ->
-                    // Ban?
                     if (res.banned) {
                         bannedReason = res.reason ?: "Suspicious activity detected on your account."
                         return@onSuccess
@@ -142,6 +146,27 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                 popUpTo(Routes.KYC) { inclusive = false }
                 launchSingleTop = true
             }
+        }
+    }
+
+    // ═══ FCM Notification → Navigate to correct screen ═══
+    LaunchedEffect(currentPath, prefs.token) {
+        val target = NavIntent.targetScreen
+        if (target != null && !prefs.token.isNullOrBlank() && currentPath != Routes.SPLASH) {
+            val route = when (target) {
+                "history"       -> Routes.HISTORY
+                "kyc"           -> Routes.KYC
+                "notifications" -> Routes.NOTIFICATIONS
+                "home"          -> Routes.HOME
+                "profile"       -> Routes.PROFILE
+                "deposit"       -> Routes.DEPOSIT
+                "withdraw"      -> Routes.WITHDRAW
+                else            -> Routes.HOME
+            }
+            if (currentPath != route) {
+                nav.navigate(route) { launchSingleTop = true }
+            }
+            NavIntent.clear()
         }
     }
 
@@ -254,7 +279,23 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                     validationDone = true
                 }
 
+                LaunchedEffect(Unit) {
+                    try {
+                        val res = repo.checkVersion()
+                        if (res.isSuccess) {
+                            val v = res.getOrNull()
+                            if (v != null && v.success) {
+                                val currentCode = com.nexa.app.data.AppConfig.CURRENT_VERSION_CODE
+                                if (v.forceUpdate || currentCode < v.minVersion) {
+                                    forceUpdateInfo = v
+                                }
+                            }
+                        }
+                    } catch (_: Exception) { }
+                }
+
                 LaunchedEffect(splashTimePassed, validationDone, destination) {
+                    if (forceUpdateInfo != null) return@LaunchedEffect
                     if (splashTimePassed && validationDone && destination != null) {
                         nav.navigate(destination!!) {
                             popUpTo(Routes.SPLASH) { inclusive = true }
@@ -336,11 +377,11 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
         }
 
         // ═══ OFFLINE WALL ═══
-        if (showOfflineWall && bannedReason == null) {
+        if (showOfflineWall && bannedReason == null && forceUpdateInfo == null) {
             OfflineWall(ctx)
         }
 
-        // ═══ NEW: BAN OVERLAY (topmost, blocks everything) ═══
+        // ═══ BAN OVERLAY ═══
         val reason = bannedReason
         if (reason != null) {
             BannedOverlay(reason = reason) {
@@ -350,12 +391,19 @@ fun NexaNav(prefs: Prefs, repo: Repository) {
                 nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
             }
         }
+
+        // ═══ FORCE UPDATE OVERLAY (topmost) ═══
+        val updateInfo = forceUpdateInfo
+        if (updateInfo != null) {
+            ForceUpdateScreen(
+                latestVersionName = updateInfo.latestVersionName,
+                releaseNotes = updateInfo.releaseNotes,
+                updateUrl = updateInfo.updateUrl
+            )
+        }
     }
 }
 
-/* ═══════════════════════════════════════════════
-   BAN OVERLAY — force-logout screen
-   ═══════════════════════════════════════════════ */
 @Composable
 private fun BannedOverlay(reason: String, onLogout: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
@@ -368,13 +416,11 @@ private fun BannedOverlay(reason: String, onLogout: () -> Unit) {
                 interactionSource = interaction,
                 indication = null,
                 enabled = true
-            ) { /* swallow clicks */ },
+            ) { },
         contentAlignment = Alignment.Center
     ) {
         Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(32.dp),
+            Modifier.fillMaxWidth().padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
@@ -463,9 +509,6 @@ private fun BannedOverlay(reason: String, onLogout: () -> Unit) {
     }
 }
 
-/* ═══════════════════════════════════════════════
-   OFFLINE WALL (unchanged)
-   ═══════════════════════════════════════════════ */
 @Composable
 private fun OfflineWall(context: Context) {
     val interaction = remember { MutableInteractionSource() }
