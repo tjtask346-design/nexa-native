@@ -50,6 +50,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     val ctx = LocalContext.current
     var balance by remember { mutableStateOf(0.0) }
     var ltcBalance by remember { mutableStateOf(0.0) }
+    var ltcPrice by remember { mutableStateOf(85.0) }
     var txs by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var hidden by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
@@ -67,6 +68,23 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             loading = false
         }.onFailure { loading = false }
         repo.myTransactions().onSuccess { txs = it.transactions }
+    }
+
+    // ═══ Fetch LTC price on mount ═══
+    LaunchedEffect(Unit) {
+        repo.getPrices().onSuccess { p ->
+            ltcPrice = p.ltc
+        }
+    }
+
+    // ═══ Poll LTC price every 60 seconds ═══
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000)
+            repo.getPrices().onSuccess { p ->
+                ltcPrice = p.ltc
+            }
+        }
     }
 
     // Polling for notifications
@@ -167,10 +185,11 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 }
             }
 
-            // BALANCE CARD
+            // BALANCE CARD — shows total USD (USDT + LTC value)
             BalanceCard(
                 balance = balance,
                 ltcBalance = ltcBalance,
+                ltcPrice = ltcPrice,
                 hidden = hidden,
                 onToggleHide = { hidden = !hidden },
                 monthIn = monthIn,
