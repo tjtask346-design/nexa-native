@@ -85,6 +85,13 @@ data class VersionResponse(
     val releaseNotes: String = ""
 )
 
+data class PriceResponse(
+    val success: Boolean = false,
+    val ltc: Double = 85.0,
+    val cached: Boolean = false,
+    val fallback: Boolean = false
+)
+
 data class Transaction(
     @SerializedName(value = "_id", alternate = ["id"])
     val id: String? = null,
@@ -255,6 +262,9 @@ interface NexaApi {
 
     @GET("/api/version")
     suspend fun checkVersion(@Query("app") app: String = "user"): VersionResponse
+
+    @GET("/api/price")
+    suspend fun getPrices(): PriceResponse
 }
 
 object ApiClient {
