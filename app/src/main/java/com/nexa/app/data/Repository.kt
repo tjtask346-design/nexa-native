@@ -66,9 +66,14 @@ class Repository(private val prefs: Prefs) {
             wrap { api.sendMoney(authHeader(), SendMoneyRequest(receiverUid, amount, pin, currency)) }
         }
 
-    suspend fun withdrawCrypto(toAddress: String, amount: Double): Result<SimpleResponse> =
+    // ═══ FIXED: now accepts currency parameter ═══
+    suspend fun withdrawCrypto(
+        toAddress: String,
+        amount: Double,
+        currency: String = "usdt"
+    ): Result<SimpleResponse> =
         withContext(Dispatchers.IO) {
-            wrap { api.withdrawOnchain(authHeader(), WithdrawOnchainRequest(toAddress, amount)) }
+            wrap { api.withdrawOnchain(authHeader(), WithdrawOnchainRequest(toAddress, amount, currency)) }
         }
 
     suspend fun submitKyc(nid: String, front: String, back: String, selfie: String): Result<SimpleResponse> =
