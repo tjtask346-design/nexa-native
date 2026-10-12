@@ -5,7 +5,6 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
-# এটা খুব জরুরি, না হলে Release create করতে পারবে না
 permissions:
   contents: write
 
@@ -53,7 +52,6 @@ jobs:
 
       - name: Rename APK to stable name
         run: |
-          # ফাইলের নাম সবসময় এক রাখছি যাতে Direct Link কখনো change না হয়
           cd app/build/outputs/apk/release/
           mv app-release.apk nexa.apk || mv *.apk nexa.apk
           ls -la
@@ -65,12 +63,56 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
 
-      - name: Release APK for Direct Download
+      # ═══════════════════════════════════════════════════════
+      # STEP 1: Delete old "latest" release + tag
+      # এটা না থাকলে softprops/action-gh-release fail করে
+      # ═══════════════════════════════════════════════════════
+      - name: Delete existing 'latest' release and tag
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🗑️ Deleting old 'latest' release (if exists)..."
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || echo "No existing release to delete"
+          echo "✅ Old release check complete"
+
+      # ═══════════════════════════════════════════════════════
+      # STEP 2: Create fresh "latest" release with new APK
+      # ═══════════════════════════════════════════════════════
+      - name: Create GitHub Release with new APK
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: "Nexa Latest Build"
-          body: "Auto build from main branch - ${{ github.event.head_commit.message }}"
+          name: "Nexa — Latest Release"
+          body: |
+            ## 🚀 Nexa — Latest Release
+            
+            **Build ID:** `${{ github.sha }}`
+            **Date:** ${{ github.event.head_commit.timestamp }}
+            **Message:** ${{ github.event.head_commit.message }}
+            
+            ### 📥 Direct Download
+            ```
+            https://github.com/${{ github.repository }}/releases/latest/download/nexa.apk
+            ```
+            
+            ### 📱 Install
+            1. Download `nexa.apk` below
+            2. Enable "Install from unknown sources"
+            3. Install & login
+            
+            ### ✨ Latest Updates
+            - Pull-to-refresh on Home screen
+            - Live LTC price in balance
+            - Fixed LTC deposit sync
+            - Full USDT/LTC support
+            
+            ### 📋 Requirements
+            - Android 8.0+ (API 26+)
+            - ~15-18 MB storage
           files: app/build/outputs/apk/release/nexa.apk
+          make_latest: true
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
