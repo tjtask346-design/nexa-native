@@ -16,8 +16,10 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,51 +45,54 @@ import com.nexa.app.ui.components.TxRow
 import com.nexa.app.ui.components.UserAvatar
 import com.nexa.app.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Calendar
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     var balance by remember { mutableStateOf(0.0) }
     var ltcBalance by remember { mutableStateOf(0.0) }
-    var ltcPrice by remember { mutableStateOf(85.0) }
+    var ltcPrice by remember { mutableStateOf(64.8) }
     var txs by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var hidden by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
+    var refreshing by remember { mutableStateOf(false) }
     var showFabSheet by remember { mutableStateOf(false) }
 
     var unreadCount by remember { mutableStateOf(0) }
     var lastSeenCount by remember { mutableStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    // ═══ Reload all data function ═══
+    suspend fun loadAll() {
         repo.me().onSuccess { me ->
             me.user?.let { u ->
                 balance = u.balance
                 ltcBalance = u.ltcBalance
             }
-            loading = false
-        }.onFailure { loading = false }
-        repo.myTransactions().onSuccess { txs = it.transactions }
-    }
-
-    // ═══ Fetch LTC price on mount ═══
-    LaunchedEffect(Unit) {
-        repo.getPrices().onSuccess { p ->
-            ltcPrice = p.ltc
         }
+        repo.myTransactions().onSuccess { txs = it.transactions }
+        repo.getPrices().onSuccess { p -> ltcPrice = p.ltc }
     }
 
-    // ═══ Poll LTC price every 60 seconds ═══
+    // Initial load
+    LaunchedEffect(Unit) {
+        loadAll()
+        loading = false
+    }
+
+    // Auto-refresh every 30 seconds (silent background refresh)
     LaunchedEffect(Unit) {
         while (true) {
-            delay(60_000)
-            repo.getPrices().onSuccess { p ->
-                ltcPrice = p.ltc
-            }
+            delay(30_000)
+            loadAll()
         }
     }
 
-    // Polling for notifications
+    // Notification polling
     LaunchedEffect(Unit) {
         while (true) {
             try {
@@ -129,145 +134,162 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         }.sumOf { it.amount }
     }
 
-    Column(Modifier.fillMaxSize()) {
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 20.dp)
-        ) {
-            // TOP BAR
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+    // ═══ Pull-to-refresh wrapper ═══
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = {
+            scope.launch {
+                refreshing = true
+                loadAll()
+                delay(300) // smooth animation
+                refreshing = false
+            }
+        },
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 20.dp)
             ) {
-                UserAvatar(prefs = prefs, size = 42.dp, cornerRadius = 14.dp)
+                // TOP BAR
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    UserAvatar(prefs = prefs, size = 42.dp, cornerRadius = 14.dp)
 
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Welcome back 👋",
-                        color = NexaMuted, fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium, letterSpacing = 0.2.sp
-                    )
-                    Text(
-                        prefs.name ?: "User",
-                        color = NexaText, fontWeight = FontWeight.Bold,
-                        fontSize = 15.5.sp, letterSpacing = (-0.2).sp, maxLines = 1
-                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Welcome back 👋",
+                            color = NexaMuted, fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium, letterSpacing = 0.2.sp
+                        )
+                        Text(
+                            prefs.name ?: "User",
+                            color = NexaText, fontWeight = FontWeight.Bold,
+                            fontSize = 15.5.sp, letterSpacing = (-0.2).sp, maxLines = 1
+                        )
+                    }
+
+                    Box(
+                        Modifier.size(40.dp).clip(RoundedCornerShape(13.dp))
+                            .background(NexaSurface2)
+                            .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(13.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { nav.navigate(Routes.NOTIFICATIONS) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Notifications, "Notifications",
+                            tint = NexaText, modifier = Modifier.size(19.dp)
+                        )
+                        if (unreadCount > 0) {
+                            Box(
+                                Modifier.align(Alignment.TopEnd)
+                                    .offset(x = 4.dp, y = (-4).dp)
+                                    .size(18.dp).clip(RoundedCornerShape(9.dp))
+                                    .background(NexaRed),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    if (unreadCount > 9) "9+" else unreadCount.toString(),
+                                    color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
+                    }
                 }
 
-                Box(
-                    Modifier.size(40.dp).clip(RoundedCornerShape(13.dp))
-                        .background(NexaSurface2)
-                        .border(1.dp, NexaBorder.copy(alpha = 0.09f), RoundedCornerShape(13.dp))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { nav.navigate(Routes.NOTIFICATIONS) },
-                    contentAlignment = Alignment.Center
+                // BALANCE CARD — shows total USD
+                BalanceCard(
+                    balance = balance,
+                    ltcBalance = ltcBalance,
+                    ltcPrice = ltcPrice,
+                    hidden = hidden,
+                    onToggleHide = { hidden = !hidden },
+                    monthIn = monthIn,
+                    monthOut = monthOut,
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+
+                // QUICK ACTIONS
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        Icons.Filled.Notifications, "Notifications",
-                        tint = NexaText, modifier = Modifier.size(19.dp)
+                    QuickAction("Deposit", Icons.Filled.ArrowDownward, NexaGreen, Modifier.weight(1f)) {
+                        nav.navigate(Routes.DEPOSIT)
+                    }
+                    QuickAction("Withdraw", Icons.Filled.ArrowUpward, NexaTeal, Modifier.weight(1f)) {
+                        nav.navigate(Routes.WITHDRAW)
+                    }
+                    QuickAction("Scan", Icons.Filled.QrCodeScanner, NexaGreen, Modifier.weight(1f)) {
+                        nav.navigate(Routes.SCAN)
+                    }
+                    QuickAction("My QR", Icons.Filled.QrCode2, NexaTeal, Modifier.weight(1f)) {
+                        nav.navigate(Routes.MYQR)
+                    }
+                }
+
+                // QUICK DEPOSIT
+                Spacer(Modifier.height(24.dp))
+                Box(Modifier.padding(horizontal = 20.dp)) { SectionHeader("Quick Deposit") }
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    MethodCard("USDT", "BEP20 · BSC", R.drawable.usdt, Color(0xFF26A17B)) {
+                        nav.navigate("${Routes.DEPOSIT}?crypto=usdt")
+                    }
+                    MethodCard("Litecoin", "LTC Network", R.drawable.ltc, Color(0xFF345D9D)) {
+                        nav.navigate("${Routes.DEPOSIT}?crypto=ltc")
+                    }
+                    MethodCard("Nexa User", "0% fee", R.drawable.nexa_logo, NexaGreen) {
+                        nav.navigate("${Routes.DEPOSIT}?crypto=nexa")
+                    }
+                }
+
+                // RECENT TRANSACTIONS
+                Spacer(Modifier.height(24.dp))
+                Box(Modifier.padding(horizontal = 20.dp)) {
+                    SectionHeader(
+                        title = "Recent Transactions",
+                        actionText = "See all",
+                        onAction = { nav.navigate(Routes.HISTORY) }
                     )
-                    if (unreadCount > 0) {
-                        Box(
-                            Modifier.align(Alignment.TopEnd)
-                                .offset(x = 4.dp, y = (-4).dp)
-                                .size(18.dp).clip(RoundedCornerShape(9.dp))
-                                .background(NexaRed),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                if (unreadCount > 9) "9+" else unreadCount.toString(),
-                                color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold
-                            )
-                        }
+                }
+                Spacer(Modifier.height(12.dp))
+
+                if (txs.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().padding(60.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            if (loading) "Loading…" else "No transactions yet",
+                            color = NexaDim, fontSize = 13.sp
+                        )
+                    }
+                } else {
+                    Column(
+                        Modifier.padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(9.dp)
+                    ) {
+                        txs.take(5).forEach { tx -> TxRow(tx) }
                     }
                 }
             }
 
-            // BALANCE CARD — shows total USD (USDT + LTC value)
-            BalanceCard(
-                balance = balance,
-                ltcBalance = ltcBalance,
-                ltcPrice = ltcPrice,
-                hidden = hidden,
-                onToggleHide = { hidden = !hidden },
-                monthIn = monthIn,
-                monthOut = monthOut,
-                modifier = Modifier.padding(horizontal = 20.dp)
+            NexaBottomBar(
+                currentRoute = Routes.HOME,
+                onNavigate = { nav.navigate(it) },
+                onFabClick = { showFabSheet = true }
             )
-
-            // QUICK ACTIONS
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                QuickAction("Deposit", Icons.Filled.ArrowDownward, NexaGreen, Modifier.weight(1f)) {
-                    nav.navigate(Routes.DEPOSIT)
-                }
-                QuickAction("Withdraw", Icons.Filled.ArrowUpward, NexaTeal, Modifier.weight(1f)) {
-                    nav.navigate(Routes.WITHDRAW)
-                }
-                QuickAction("Scan", Icons.Filled.QrCodeScanner, NexaGreen, Modifier.weight(1f)) {
-                    nav.navigate(Routes.SCAN)
-                }
-                QuickAction("My QR", Icons.Filled.QrCode2, NexaTeal, Modifier.weight(1f)) {
-                    nav.navigate(Routes.MYQR)
-                }
-            }
-
-            // QUICK DEPOSIT
-            Spacer(Modifier.height(24.dp))
-            Box(Modifier.padding(horizontal = 20.dp)) { SectionHeader("Quick Deposit") }
-            Spacer(Modifier.height(12.dp))
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                MethodCard("USDT", "BEP20 · BSC", R.drawable.usdt, Color(0xFF26A17B)) {
-                    nav.navigate("${Routes.DEPOSIT}?crypto=usdt")
-                }
-                MethodCard("Litecoin", "LTC Network", R.drawable.ltc, Color(0xFF345D9D)) {
-                    nav.navigate("${Routes.DEPOSIT}?crypto=ltc")
-                }
-                MethodCard("Nexa User", "0% fee", R.drawable.nexa_logo, NexaGreen) {
-                    nav.navigate("${Routes.DEPOSIT}?crypto=nexa")
-                }
-            }
-
-            // RECENT TRANSACTIONS
-            Spacer(Modifier.height(24.dp))
-            Box(Modifier.padding(horizontal = 20.dp)) {
-                SectionHeader(
-                    title = "Recent Transactions",
-                    actionText = "See all",
-                    onAction = { nav.navigate(Routes.HISTORY) }
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-
-            if (txs.isEmpty()) {
-                Box(Modifier.fillMaxWidth().padding(60.dp), contentAlignment = Alignment.Center) {
-                    Text(
-                        if (loading) "Loading…" else "No transactions yet",
-                        color = NexaDim, fontSize = 13.sp
-                    )
-                }
-            } else {
-                Column(
-                    Modifier.padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp)
-                ) {
-                    txs.take(5).forEach { tx -> TxRow(tx) }
-                }
-            }
         }
-
-        NexaBottomBar(
-            currentRoute = Routes.HOME,
-            onNavigate = { nav.navigate(it) },
-            onFabClick = { showFabSheet = true }
-        )
     }
 
     if (showFabSheet) {
