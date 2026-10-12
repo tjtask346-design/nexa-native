@@ -141,7 +141,14 @@ data class RegisterRequest(val idToken: String, val fullName: String, val pin: S
 data class LoginPinRequest(val email: String, val pin: String, val code: String? = null)
 data class DepositRequest(val amount: Double, val trxId: String, val paymentMethodNumber: String? = null)
 data class CashoutRequest(val amount: Double, val paymentMethodNumber: String? = null)
-data class WithdrawOnchainRequest(val to: String, val amount: Double)
+
+// ═══ FIXED: added currency parameter ═══
+data class WithdrawOnchainRequest(
+    val to: String,
+    val amount: Double,
+    val currency: String = "usdt"
+)
+
 data class SendMoneyRequest(
     val receiverUid: String,
     val amount: Double,
