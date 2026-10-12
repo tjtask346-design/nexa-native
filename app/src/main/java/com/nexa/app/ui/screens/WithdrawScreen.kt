@@ -55,7 +55,7 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     val scope = rememberCoroutineScope()
 
     var selected by remember { mutableStateOf("usdt") }
-    var nexaSubCurrency by remember { mutableStateOf("usdt") } // for Nexa User tab
+    var nexaSubCurrency by remember { mutableStateOf("usdt") }
     var amount by remember { mutableStateOf("") }
     var dest by remember { mutableStateOf("") }
     var balanceUsd by remember { mutableStateOf(0.0) }
@@ -73,8 +73,6 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
     val amt = amount.toDoubleOrNull() ?: 0.0
 
-    // ═══ Effective currency for calculations ═══
-    // If "nexa" tab selected, use the sub-currency
     val effectiveCurrency = if (selected == "nexa") nexaSubCurrency else selected
 
     // ═══ Min + fee based on effective currency + context ═══
@@ -85,12 +83,10 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     when (effectiveCurrency) {
         "usdt" -> {
             if (selected == "nexa") {
-                // Internal Nexa transfer — very low min, free
                 minWithdraw = 0.02
                 fee = 0.0
                 availableBalance = balanceUsd
             } else {
-                // External USDT withdrawal
                 minWithdraw = NexaConfig.MIN_WITHDRAW_USDT_USD
                 fee = NexaConfig.NETWORK_FEE_USDT_USD
                 availableBalance = balanceUsd
@@ -98,12 +94,10 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
         }
         "ltc" -> {
             if (selected == "nexa") {
-                // Internal LTC transfer — very low min, free
                 minWithdraw = 0.0001
                 fee = 0.0
                 availableBalance = balanceLtc
             } else {
-                // External LTC withdrawal
                 minWithdraw = 0.0005
                 fee = NexaConfig.NETWORK_FEE_LTC_USD
                 availableBalance = balanceLtc
@@ -119,21 +113,26 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     val net = (amt - fee).coerceAtLeast(0.0)
     val canSubmit = !loading && amt >= minWithdraw && amt <= availableBalance && dest.isNotBlank()
 
-    // ═══ Labels ═══
+    // ═══ Labels — currency-aware ═══
     val minLabel = when (effectiveCurrency) {
         "usdt" -> if (selected == "nexa") "Minimum: \$0.02" else "Minimum: 3 USDT (\$3.00)"
-        "ltc"  -> if (selected == "nexa") "Minimum: 0.0001 LTC" else "Minimum: 0.0005 LTC"
+        "ltc"  -> if (selected == "nexa") "Minimum: 0.0001 LTC" else "Minimum: 0.0005 LTC (~\$0.05)"
         else   -> "Minimum: \$20.00"
     }
-    val feeLabel = if (fee == 0.0) "Network fee: Free"
-                   else "Network fee: \$${String.format("%.2f", fee)}"
+
+    // ═══ Fee label — shows in LTC when LTC is selected ═══
+    val feeLabel = when {
+        fee == 0.0 -> "Network fee: Free"
+        effectiveCurrency == "ltc" -> "Network fee: ~0.00001 LTC (typical)"
+        else -> "Network fee: ~\$0.02 (typical)"
+    }
+
     val availableLabel = when (effectiveCurrency) {
         "ltc" -> "Available: ${String.format("%.6f", availableBalance)} LTC"
         else  -> "Available: \$${String.format("%,.2f", availableBalance)}"
     }
 
     Column(Modifier.fillMaxSize().background(NexaBg)) {
-        // Header
         Row(
             Modifier.fillMaxWidth().padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -387,9 +386,16 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                         "${amt} LTC"
                     else
                         "\$${String.format("%,.2f", amt)}"
-                    val feeDisplay = if (fee == 0.0) "Free" else "\$${String.format("%.2f", fee)}"
+
+                    // ═══ Fee display — currency-aware ═══
+                    val feeDisplay = when {
+                        fee == 0.0 -> "Free"
+                        effectiveCurrency == "ltc" -> "~0.00001 LTC"
+                        else -> "~\$0.02"
+                    }
+
                     val netDisplay = if (effectiveCurrency == "ltc")
-                        "${(net * 1.0)} LTC"
+                        "${net} LTC"
                     else
                         "\$${String.format("%,.2f", net)}"
 
@@ -442,7 +448,6 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     scope.launch {
                         loading = true
                         if (selected == "nexa") {
-                            // ═══ Internal Nexa transfer with currency ═══
                             val res = repo.sendMoney(dest.trim(), amt, prefs.pin ?: "", effectiveCurrency)
                             loading = false
                             res.onSuccess {
@@ -454,7 +459,6 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                                 Toast.makeText(ctx, it.message ?: "Failed", Toast.LENGTH_LONG).show()
                             }
                         } else {
-                            // ═══ External on-chain withdraw ═══
                             val res = repo.withdrawCrypto(dest.trim(), amt)
                             loading = false
                             res.onSuccess { r ->
