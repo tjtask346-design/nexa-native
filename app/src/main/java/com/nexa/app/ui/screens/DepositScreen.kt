@@ -116,7 +116,7 @@ fun DepositScreen(
                 user?.wallets?.bscAddress.isNullOrBlank() &&
                 user?.ltcAddress.isNullOrBlank() -> KycRequiredCard(nav)
 
-                selected == null -> CryptoPicker(OPTIONS) { key -> selected = key }
+                selected == null -> CryptoPicker(OPTIONS, user) { key -> selected = key }
 
                 else -> {
                     val opt = OPTIONS.first { it.key == selected }
@@ -128,6 +128,7 @@ fun DepositScreen(
                         AddressView(
                             option = opt,
                             address = address,
+                            user = user,
                             onBack = { selected = null },
                             onCopy = {
                                 clipboard.setText(AnnotatedString(address))
@@ -177,7 +178,11 @@ private fun KycRequiredCard(nav: NavController) {
 }
 
 @Composable
-private fun CryptoPicker(options: List<CryptoOption>, onPick: (String) -> Unit) {
+private fun CryptoPicker(
+    options: List<CryptoOption>,
+    user: User?,
+    onPick: (String) -> Unit
+) {
     Column {
         Spacer(Modifier.height(8.dp))
         Text(
@@ -223,6 +228,33 @@ private fun CryptoPicker(options: List<CryptoOption>, onPick: (String) -> Unit) 
                         Text(opt.name, color = NexaText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         Text(opt.network, color = NexaDim, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
                     }
+
+                    // ═══ Small balance tag in picker ═══
+                    val balanceTag = when (opt.key) {
+                        "usdt" -> user?.balance?.takeIf { it > 0.0 }?.let {
+                            "\$${String.format("%,.2f", it)}"
+                        }
+                        "ltc" -> user?.ltcBalance?.takeIf { it > 0.0 }?.let {
+                            "${String.format("%.6f", it)} LTC"
+                        }
+                        else -> null
+                    }
+                    if (balanceTag != null) {
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(opt.color.copy(alpha = 0.12f))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                balanceTag,
+                                color = opt.color,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
                     Text("›", color = NexaDim, fontSize = 22.sp)
                 }
             }
@@ -289,10 +321,18 @@ private fun MissingAddressView(option: CryptoOption, onBack: () -> Unit) {
 private fun AddressView(
     option: CryptoOption,
     address: String,
+    user: User?,
     onBack: () -> Unit,
     onCopy: () -> Unit
 ) {
     val qrBitmap = remember(address) { generateQr(address) }
+
+    // ═══ Small balance tag — only for USDT/LTC ═══
+    val balanceTag = when (option.key) {
+        "usdt" -> user?.balance?.let { "\$${String.format("%,.2f", it)}" }
+        "ltc"  -> user?.ltcBalance?.let { "${String.format("%.6f", it)} LTC" }
+        else   -> null
+    }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -326,19 +366,35 @@ private fun AddressView(
             "Deposit ${option.name}",
             color = NexaText, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp
         )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            option.network,
-            color = option.color, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                .background(option.color.copy(alpha = 0.12f))
-                .padding(horizontal = 10.dp, vertical = 4.dp)
-        )
+
+        Spacer(Modifier.height(8.dp))
+
+        // Network chip + balance tag
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                option.network,
+                color = option.color, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                    .background(option.color.copy(alpha = 0.12f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+
+            // ═══ Small balance tag ═══
+            if (balanceTag != null && option.key != "nexa") {
+                Text(
+                    "Your balance: $balanceTag",
+                    color = NexaMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium
+                )
+            }
+        }
 
         Spacer(Modifier.height(22.dp))
 
         if (option.key == "nexa") {
-            // ═══ NEXA — Account Number (not username) ═══
+            // ═══ NEXA — Account Number ═══
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
                     .background(NexaSurface)
