@@ -97,6 +97,9 @@ class Repository(private val prefs: Prefs) {
     suspend fun checkVersion(): Result<VersionResponse> =
         withContext(Dispatchers.IO) { wrap { api.checkVersion("user") } }
 
+    suspend fun getPrices(): Result<PriceResponse> =
+        withContext(Dispatchers.IO) { wrap { api.getPrices() } }
+
     fun saveSession(token: String?, user: User?) {
         prefs.token = token
         prefs.email = user?.email
