@@ -31,18 +31,23 @@ import com.nexa.app.data.Transaction
 import com.nexa.app.ui.theme.*
 
 // ═══════════════════════════════════════
-// BALANCE CARD — with LTC line
+// BALANCE CARD — Total assets in USD
 // ═══════════════════════════════════════
 @Composable
 fun BalanceCard(
     balance: Double,
     ltcBalance: Double,
+    ltcPrice: Double,
     hidden: Boolean,
     onToggleHide: () -> Unit,
     monthIn: Double,
     monthOut: Double,
     modifier: Modifier = Modifier
 ) {
+    // ═══ Total USD = USDT (balance) + LTC value in USD ═══
+    val ltcValueUsd = ltcBalance * ltcPrice
+    val totalUsd = balance + ltcValueUsd
+
     Box(
         modifier
             .fillMaxWidth()
@@ -72,7 +77,7 @@ fun BalanceCard(
             .padding(22.dp)
     ) {
         Column {
-            // ═══ Header row ═══
+            // ═══ Header ═══
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -109,9 +114,9 @@ fun BalanceCard(
 
             Spacer(Modifier.height(12.dp))
 
-            // ═══ USD balance ═══
+            // ═══ Total USD ═══
             Text(
-                if (hidden) "•••••••" else "$" + String.format("%,.2f", balance),
+                if (hidden) "•••••••" else "$" + String.format("%,.2f", totalUsd),
                 fontSize = 40.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-1.6).sp,
@@ -123,60 +128,11 @@ fun BalanceCard(
             Spacer(Modifier.height(4.dp))
 
             Text(
-                if (hidden) "≈ ৳ ••••••" else "≈ ৳" + String.format("%,.2f", balance * 122),
+                if (hidden) "≈ ৳ ••••••" else "≈ ৳" + String.format("%,.2f", totalUsd * 122),
                 color = NexaText.copy(alpha = 0.6f),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium
             )
-
-            // ═══ LTC balance line — only if user has LTC ═══
-            if (ltcBalance > 0.0) {
-                Spacer(Modifier.height(14.dp))
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(Color.White.copy(alpha = 0.06f))
-                        .border(1.dp, Color(0xFF345D9D).copy(alpha = 0.35f), RoundedCornerShape(13.dp))
-                        .padding(horizontal = 13.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // LTC icon circle
-                        Box(
-                            Modifier
-                                .size(24.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF345D9D).copy(alpha = 0.25f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "Ł",
-                                color = Color(0xFF6FA0E8),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                        }
-                        Text(
-                            "LTC BALANCE",
-                            color = NexaText.copy(alpha = 0.75f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.6.sp
-                        )
-                    }
-                    Text(
-                        if (hidden) "••••••" else String.format("%.6f", ltcBalance) + " LTC",
-                        color = Color(0xFF6FA0E8),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                }
-            }
 
             Spacer(Modifier.height(18.dp))
 
@@ -386,10 +342,6 @@ fun TxRow(tx: Transaction) {
         else -> NexaRed
     }
     val iconColor = if (isLtc) Color(0xFF345D9D) else if (isIn) NexaGreen else NexaTeal
-
-    // Currency symbol
-    val currencySymbol = if (isLtc) " Ł" else "$"
-    val currencyPrefix = if (isLtc) "" else "$"
 
     Row(
         Modifier
