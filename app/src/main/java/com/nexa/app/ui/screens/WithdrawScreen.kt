@@ -49,9 +49,9 @@ private val NEXA_SUB_OPTIONS = listOf(
     "ltc"  to "LTC"
 )
 
-// ═══ LTC fee in LTC units (NOT USD) ═══
-private const val LTC_NETWORK_FEE_LTC = 0.00001
-private const val LTC_MIN_EXTERNAL = 0.0005
+// ═══ UPDATED: LTC fee + min in LTC units ═══
+private const val LTC_NETWORK_FEE_LTC = 0.0001   // ⬅️ changed from 0.00001
+private const val LTC_MIN_EXTERNAL = 0.002       // ⬅️ changed from 0.0005
 
 @Composable
 fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
@@ -79,9 +79,9 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
     val effectiveCurrency = if (selected == "nexa") nexaSubCurrency else selected
 
-    // ═══ Min + fee — BOTH in same unit as amt ═══
+    // ═══ Min + fee based on effective currency ═══
     val minWithdraw: Double
-    val fee: Double              // in same unit as amt (LTC or USD)
+    val fee: Double
     val availableBalance: Double
 
     when (effectiveCurrency) {
@@ -91,8 +91,8 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 fee = 0.0
                 availableBalance = balanceUsd
             } else {
-                minWithdraw = NexaConfig.MIN_WITHDRAW_USDT_USD  // 3.0 USD
-                fee = NexaConfig.NETWORK_FEE_USDT_USD           // 0.30 USD
+                minWithdraw = NexaConfig.MIN_WITHDRAW_USDT_USD
+                fee = NexaConfig.NETWORK_FEE_USDT_USD
                 availableBalance = balanceUsd
             }
         }
@@ -102,8 +102,8 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 fee = 0.0
                 availableBalance = balanceLtc
             } else {
-                minWithdraw = LTC_MIN_EXTERNAL                  // 0.0005 LTC
-                fee = LTC_NETWORK_FEE_LTC                       // 0.00001 LTC ⭐ FIX
+                minWithdraw = LTC_MIN_EXTERNAL         // 0.002 LTC
+                fee = LTC_NETWORK_FEE_LTC              // 0.0001 LTC
                 availableBalance = balanceLtc
             }
         }
@@ -120,13 +120,13 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     // ═══ Labels ═══
     val minLabel = when (effectiveCurrency) {
         "usdt" -> if (selected == "nexa") "Minimum: \$0.02" else "Minimum: 3 USDT (\$3.00)"
-        "ltc"  -> if (selected == "nexa") "Minimum: 0.0001 LTC" else "Minimum: 0.0005 LTC (~\$0.05)"
+        "ltc"  -> if (selected == "nexa") "Minimum: 0.0001 LTC" else "Minimum: 0.002 LTC (~\$0.13)"
         else   -> "Minimum: \$20.00"
     }
 
     val feeLabel = when {
         fee == 0.0 -> "Network fee: Free"
-        effectiveCurrency == "ltc" -> "Network fee: ~0.00001 LTC"  // LTC ⭐
+        effectiveCurrency == "ltc" -> "Network fee: 0.0001 LTC"   // ⬅️ 0.00001 → 0.0001
         else -> "Network fee: ~\$0.02"
     }
 
@@ -309,7 +309,7 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     val presets = if (selected == "nexa")
                         listOf(0.0005, 0.001, 0.005)
                     else
-                        listOf(0.001, 0.005, 0.01)
+                        listOf(0.002, 0.005, 0.01)   // ⬅️ 0.001 → 0.002
                     presets.forEach { preset ->
                         QuickChip("${preset}", Modifier.weight(1f)) {
                             amount = preset.toString()
@@ -390,10 +390,10 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                     else
                         "\$${String.format("%,.2f", amt)}"
 
-                    // ⭐ FIXED: Fee display in correct unit
+                    // ═══ Fee display ═══
                     val feeDisplay = when {
                         fee == 0.0 -> "Free"
-                        effectiveCurrency == "ltc" -> "${LTC_NETWORK_FEE_LTC} LTC"
+                        effectiveCurrency == "ltc" -> "0.0001 LTC"    // ⬅️ 0.00001 → 0.0001
                         else -> "\$${String.format("%.2f", fee)}"
                     }
 
@@ -430,7 +430,7 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                         selected == "usdt" ->
                             "Only send to BEP20 (BSC) address. Min 3 USDT."
                         else ->
-                            "Only send to Litecoin (LTC) address. Min 0.0005 LTC."
+                            "Only send to Litecoin (LTC) address. Min 0.002 LTC."   // ⬅️ 0.0005 → 0.002
                     },
                     color = Color(0xFF7DD3C8), fontSize = 11.5.sp,
                     lineHeight = 16.sp, fontWeight = FontWeight.Medium
@@ -462,7 +462,6 @@ fun WithdrawScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                                 Toast.makeText(ctx, it.message ?: "Failed", Toast.LENGTH_LONG).show()
                             }
                         } else {
-                            // ⭐ FIX: Pass effectiveCurrency to withdrawCrypto
                             val res = repo.withdrawCrypto(dest.trim(), amt, effectiveCurrency)
                             loading = false
                             res.onSuccess { r ->
