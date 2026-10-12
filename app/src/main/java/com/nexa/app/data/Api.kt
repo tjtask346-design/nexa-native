@@ -89,7 +89,8 @@ data class PriceResponse(
     val success: Boolean = false,
     val ltc: Double = 85.0,
     val cached: Boolean = false,
-    val fallback: Boolean = false
+    val fallback: Boolean = false,
+    val source: String = ""
 )
 
 data class Transaction(
