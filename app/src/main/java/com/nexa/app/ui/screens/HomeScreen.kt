@@ -49,6 +49,7 @@ import java.util.Calendar
 fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
     val ctx = LocalContext.current
     var balance by remember { mutableStateOf(0.0) }
+    var ltcBalance by remember { mutableStateOf(0.0) }
     var txs by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var hidden by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
@@ -59,7 +60,10 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
 
     LaunchedEffect(Unit) {
         repo.me().onSuccess { me ->
-            me.user?.let { balance = it.balance }
+            me.user?.let { u ->
+                balance = u.balance
+                ltcBalance = u.ltcBalance
+            }
             loading = false
         }.onFailure { loading = false }
         repo.myTransactions().onSuccess { txs = it.transactions }
@@ -166,6 +170,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
             // BALANCE CARD
             BalanceCard(
                 balance = balance,
+                ltcBalance = ltcBalance,
                 hidden = hidden,
                 onToggleHide = { hidden = !hidden },
                 monthIn = monthIn,
@@ -192,7 +197,7 @@ fun HomeScreen(nav: NavController, prefs: Prefs, repo: Repository) {
                 }
             }
 
-            // ═══════════ QUICK DEPOSIT — direct crypto navigation ═══════════
+            // QUICK DEPOSIT
             Spacer(Modifier.height(24.dp))
             Box(Modifier.padding(horizontal = 20.dp)) { SectionHeader("Quick Deposit") }
             Spacer(Modifier.height(12.dp))
