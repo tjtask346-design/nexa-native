@@ -10,8 +10,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.QrCode2
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,11 +31,12 @@ import com.nexa.app.data.Transaction
 import com.nexa.app.ui.theme.*
 
 // ═══════════════════════════════════════
-// BALANCE CARD
+// BALANCE CARD — with LTC line
 // ═══════════════════════════════════════
 @Composable
 fun BalanceCard(
     balance: Double,
+    ltcBalance: Double,
     hidden: Boolean,
     onToggleHide: () -> Unit,
     monthIn: Double,
@@ -73,6 +72,7 @@ fun BalanceCard(
             .padding(22.dp)
     ) {
         Column {
+            // ═══ Header row ═══
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -109,6 +109,7 @@ fun BalanceCard(
 
             Spacer(Modifier.height(12.dp))
 
+            // ═══ USD balance ═══
             Text(
                 if (hidden) "•••••••" else "$" + String.format("%,.2f", balance),
                 fontSize = 40.sp,
@@ -128,8 +129,58 @@ fun BalanceCard(
                 fontWeight = FontWeight.Medium
             )
 
+            // ═══ LTC balance line — only if user has LTC ═══
+            if (ltcBalance > 0.0) {
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .border(1.dp, Color(0xFF345D9D).copy(alpha = 0.35f), RoundedCornerShape(13.dp))
+                        .padding(horizontal = 13.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // LTC icon circle
+                        Box(
+                            Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF345D9D).copy(alpha = 0.25f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "Ł",
+                                color = Color(0xFF6FA0E8),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                        Text(
+                            "LTC BALANCE",
+                            color = NexaText.copy(alpha = 0.75f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.6.sp
+                        )
+                    }
+                    Text(
+                        if (hidden) "••••••" else String.format("%.6f", ltcBalance) + " LTC",
+                        color = Color(0xFF6FA0E8),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+            }
+
             Spacer(Modifier.height(18.dp))
 
+            // ═══ Monthly chips ═══
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 MonthChip("This Month In", "+$" + String.format("%,.2f", monthIn), Modifier.weight(1f))
                 MonthChip("This Month Out", "−$" + String.format("%,.2f", monthOut), Modifier.weight(1f))
@@ -165,7 +216,7 @@ private fun MonthChip(label: String, value: String, modifier: Modifier = Modifie
 }
 
 // ═══════════════════════════════════════
-// QUICK ACTION — With glow + Material Icon
+// QUICK ACTION
 // ═══════════════════════════════════════
 @Composable
 fun QuickAction(
@@ -256,7 +307,7 @@ fun SectionHeader(
 }
 
 // ═══════════════════════════════════════
-// QUICK DEPOSIT METHOD CARD — With real image + glow
+// METHOD CARD
 // ═══════════════════════════════════════
 @Composable
 fun MethodCard(
@@ -311,11 +362,12 @@ fun MethodCard(
 }
 
 // ═══════════════════════════════════════
-// TRANSACTION ROW — With Material Icons + glow
+// TRANSACTION ROW
 // ═══════════════════════════════════════
 @Composable
 fun TxRow(tx: Transaction) {
     val isIn = tx.type == "deposit"
+    val isLtc = tx.currency == "ltc"
     val title = when (tx.type) {
         "deposit" -> "Deposit"
         "cashout" -> "Withdraw"
@@ -333,7 +385,11 @@ fun TxRow(tx: Transaction) {
         "pending" -> NexaTeal
         else -> NexaRed
     }
-    val iconColor = if (isIn) NexaGreen else NexaTeal
+    val iconColor = if (isLtc) Color(0xFF345D9D) else if (isIn) NexaGreen else NexaTeal
+
+    // Currency symbol
+    val currencySymbol = if (isLtc) " Ł" else "$"
+    val currencyPrefix = if (isLtc) "" else "$"
 
     Row(
         Modifier
@@ -369,7 +425,22 @@ fun TxRow(tx: Transaction) {
             )
         }
         Column(Modifier.weight(1f)) {
-            Text(title, color = NexaText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(title, color = NexaText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+                if (isLtc) {
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(Color(0xFF345D9D).copy(alpha = 0.2f))
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                    ) {
+                        Text("LTC", color = Color(0xFF6FA0E8), fontSize = 8.5.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+            }
             Text(
                 (tx.createdAt ?: "").take(10) + " · " + (tx.trxId?.takeLast(6) ?: "—"),
                 color = NexaDim,
@@ -378,8 +449,11 @@ fun TxRow(tx: Transaction) {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                "$sign$${String.format("%,.2f", tx.amount)}",
-                color = if (isIn) NexaGreen else NexaText,
+                if (isLtc)
+                    "$sign${String.format("%.6f", tx.amount)} LTC"
+                else
+                    "$sign\$${String.format("%,.2f", tx.amount)}",
+                color = if (isLtc) Color(0xFF6FA0E8) else if (isIn) NexaGreen else NexaText,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
             )
